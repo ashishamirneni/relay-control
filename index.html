@@ -1,33 +1,52 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Document</title>
+  <title>WebSocket Scanner (Port 81)</title>
 </head>
 <body>
-  <div id="time">hello</div>
+  <h2>WebSocket Scanner on 192.168.0.1–192.168.1.255:81</h2>
+  <div id="results"></div>
+
+  <script>
+    const resultsDiv = document.getElementById("results");
+
+    const tryConnect = (ip) => {
+      const wsUrl = `ws://${ip}:81`;
+      let ws;
+
+      try {
+        ws = new WebSocket(wsUrl);
+
+        ws.onopen = () => {
+          const msg = `✅ WebSocket open at ${wsUrl}`;
+          console.log(msg);
+          resultsDiv.innerHTML += `<p style="color:green">${msg}</p>`;
+          ws.close();
+        };
+
+        ws.onerror = () => {
+          const msg = `❌ Failed at ${wsUrl}`;
+          console.log(msg);
+          resultsDiv.innerHTML += `<p style="color:red">${msg}</p>`;
+        };
+      } catch (e) {
+        const msg = `❌ Exception at ${wsUrl}`;
+        console.log(msg);
+        resultsDiv.innerHTML += `<p style="color:red">${msg}</p>`;
+      }
+    };
+
+    // Loop through 192.168.0.1 to 192.168.1.255
+    const startScan = () => {
+      for (let i = 0; i <= 1; i++) {
+        for (let j = 1; j <= 255; j++) {
+          const ip = `192.168.${i}.${j}`;
+          setTimeout(() => tryConnect(ip), (i * 255 + j) * 100); // throttle to 1 attempt per 100ms
+        }
+      }
+    };
+
+    startScan();
+  </script>
 </body>
-<script>
-  const time=document.getElementById("time")
-  const socket = new WebSocket("ws://192.168.0.105:81/"); // Replace with your ESP32 IP and port
-
-  console.log("hello ")
-socket.onopen = () => {
-  console.log("✅ Connected to ESP32 WebSocket");
-};
-
-socket.onmessage = (event) => {
-  time.innerText=(event.data/1000)
-};
-
-socket.onclose = () => {
-  console.log("❌ Connection closed");
-};
-
-socket.onerror = (error) => {
-  console.error("⚠️ WebSocket error:", error);
-};
-
-</script>
 </html>
