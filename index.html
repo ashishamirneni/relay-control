@@ -1,52 +1,36 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>WebSocket Scanner (Port 81)</title>
+  <title>Local WebSocket Scanner</title>
 </head>
 <body>
-  <h2>WebSocket Scanner on 192.168.0.1–192.168.1.255:81</h2>
+  <h2>WebSocket Scanner - Localhost</h2>
   <div id="results"></div>
 
   <script>
     const resultsDiv = document.getElementById("results");
 
-    const tryConnect = (ip) => {
-      const wsUrl = `ws://${ip}:81`;
-      let ws;
+    function tryWebSocket(ip) {
+      const ws = new WebSocket(`ws://${ip}:81`);
+      ws.onopen = () => {
+        resultsDiv.innerHTML += `<p style="color:green">✅ Found WebSocket at ${ip}:81</p>`;
+        ws.close();
+      };
+      ws.onerror = () => {
+        // Silent fail — you can log or show failed IPs if needed
+      };
+    }
 
-      try {
-        ws = new WebSocket(wsUrl);
-
-        ws.onopen = () => {
-          const msg = `✅ WebSocket open at ${wsUrl}`;
-          console.log(msg);
-          resultsDiv.innerHTML += `<p style="color:green">${msg}</p>`;
-          ws.close();
-        };
-
-        ws.onerror = () => {
-          const msg = `❌ Failed at ${wsUrl}`;
-          console.log(msg);
-          resultsDiv.innerHTML += `<p style="color:red">${msg}</p>`;
-        };
-      } catch (e) {
-        const msg = `❌ Exception at ${wsUrl}`;
-        console.log(msg);
-        resultsDiv.innerHTML += `<p style="color:red">${msg}</p>`;
-      }
-    };
-
-    // Loop through 192.168.0.1 to 192.168.1.255
-    const startScan = () => {
+    function scan() {
       for (let i = 0; i <= 1; i++) {
         for (let j = 1; j <= 255; j++) {
           const ip = `192.168.${i}.${j}`;
-          setTimeout(() => tryConnect(ip), (i * 255 + j) * 100); // throttle to 1 attempt per 100ms
+          setTimeout(() => tryWebSocket(ip), (i * 255 + j) * 100); // 100ms gap
         }
       }
-    };
+    }
 
-    startScan();
+    scan();
   </script>
 </body>
 </html>
