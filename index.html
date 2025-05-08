@@ -1,36 +1,20 @@
-<!DOCTYPE html>
-<html>
-<head>
-  <title>Local WebSocket Scanner</title>
-</head>
-<body>
-  <h2>WebSocket Scanner - Localhost</h2>
-  <div id="results"></div>
+<script>
+  let webSocket = new WebSocket("ws://192.168.0.105:81");
 
-  <script>
-    const resultsDiv = document.getElementById("results");
+webSocket.onopen = function(event) {
+  console.log("WebSocket is open now.");
+};
 
-    function tryWebSocket(ip) {
-      const ws = new WebSocket(`ws://${ip}:81`);
-      ws.onopen = () => {
-        resultsDiv.innerHTML += `<p style="color:green">✅ Found WebSocket at ${ip}:81</p>`;
-        ws.close();
-      };
-      ws.onerror = () => {
-        // Silent fail — you can log or show failed IPs if needed
-      };
-    }
+webSocket.onmessage = function(event) {
+  console.log("Received from ESP32: " + event.data);
+};
 
-    function scan() {
-      for (let i = 0; i <= 1; i++) {
-        for (let j = 1; j <= 255; j++) {
-          const ip = `192.168.${i}.${j}`;
-          setTimeout(() => tryWebSocket(ip), (i * 255 + j) * 100); // 100ms gap
-        }
-      }
-    }
+webSocket.onclose = function(event) {
+  console.log("WebSocket is closed now.");
+};
 
-    scan();
-  </script>
-</body>
-</html>
+webSocket.onerror = function(event) {
+  console.error("WebSocket error:", event);
+};
+
+</script>
