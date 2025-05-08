@@ -2,38 +2,56 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>ESP32 Control Panel</title>
+  <title>ESP32 WebSocket Connector</title>
   <style>
     body {
-      font-family: Arial, sans-serif;
+      font-family: sans-serif;
       text-align: center;
       margin-top: 100px;
     }
     button {
       padding: 15px 30px;
       font-size: 18px;
-      background-color: #4CAF50;
-      color: white;
-      border: none;
-      border-radius: 8px;
       cursor: pointer;
-    }
-    button:hover {
-      background-color: #45a049;
     }
   </style>
 </head>
 <body>
-  <h1>ESP32 Control Panel</h1>
-  <p>Click the button below to open the local ESP32 interface:</p>
-  <button onclick="openESP32()">Open ESP32 WebSocket Page</button>
+  <h1>ESP32 Connector</h1>
+  <p>Click below to connect to your ESP32 via WebSocket (in a new tab):</p>
+  <button onclick="connectToESP32()">Connect to ESP32</button>
 
   <script>
-    function openESP32() {
-      // Change this IP to your ESP32's local IP address
-      const esp32Url = 'http://192.168.0.105:81';
-      window.open(esp32Url, '_blank');
+    function connectToESP32() {
+      const html = `
+        <!DOCTYPE html>
+        <html>
+        <head><title>ESP32 WebSocket</title></head>
+        <body>
+          <h2>Connecting to ESP32...</h2>
+          <script>
+            const socket = new WebSocket("ws://192.168.0.105:81");
+            socket.onopen = () => {
+              document.body.innerHTML += "<p style='color: green;'>Connected to ESP32!</p>";
+              socket.send("Hello from browser!");
+            };
+            socket.onmessage = e => {
+              document.body.innerHTML += "<p>ESP32 says: " + e.data + "</p>";
+            };
+            socket.onerror = e => {
+              document.body.innerHTML += "<p style='color: red;'>WebSocket error</p>";
+              console.error(e);
+            };
+            socket.onclose = () => {
+              document.body.innerHTML += "<p style='color: orange;'>WebSocket closed</p>";
+            };
+          <\/script>
+        </body>
+        </html>
+      `;
+      const blob = new Blob([html], { type: "text/html" });
+      const url = URL.createObjectURL(blob);
+      window.open(url, "_blank");
     }
   </script>
 </body>
