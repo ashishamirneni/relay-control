@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Document</title>
+</head>
+<body>
+  <div id="time">hello</div>
+</body>
+<script>
+  const time=document.getElementById("time")
+  const socket = new WebSocket("ws://192.168.0.105:81/"); // Replace with your ESP32 IP and port
+
+  console.log("hello ")
+socket.onopen = () => {
+  console.log("✅ Connected to ESP32 WebSocket");
+};
+
+socket.onmessage = (event) => {
+  time.innerText=(event.data/1000)
+};
+
+socket.onclose = () => {
+  console.log("❌ Connection closed");
+};
+
+socket.onerror = (error) => {
+  console.error("⚠️ WebSocket error:", error);
+};
+
+</script>
+</html>
