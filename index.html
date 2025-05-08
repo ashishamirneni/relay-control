@@ -39,10 +39,12 @@
     <div id="messages"></div>
     <input type="text" id="messageInput" placeholder="Type a message">
     <button onclick="sendMessage()">Send</button>
+    <button onclick="downloadBlob()">Download HTML</button>
     <script>
         const wsUrl = 'ws://192.168.0.105:81';
         let ws = null;
 
+        // WebSocket functions
         function updateStatus(message, color) {
             const statusDiv = document.getElementById('status');
             statusDiv.textContent = message;
@@ -73,7 +75,6 @@
                 updateStatus('Disconnected', 'red');
                 addMessage('Disconnected');
                 ws = null;
-                // Attempt to reconnect after 5 seconds
                 setTimeout(connectWebSocket, 5000);
             };
 
@@ -94,6 +95,20 @@
             } else {
                 alert('Not connected or empty message');
             }
+        }
+
+        // Generate and download Blob
+        function downloadBlob() {
+            const htmlContent = document.documentElement.outerHTML;
+            const blob = new Blob([htmlContent], { type: 'text/html' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'esp32-websocket-client.html';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
         }
 
         // Initial connection attempt
