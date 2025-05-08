@@ -1,58 +1,103 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <title>ESP32 WebSocket Connector</title>
-  <style>
-    body {
-      font-family: sans-serif;
-      text-align: center;
-      margin-top: 100px;
-    }
-    button {
-      padding: 15px 30px;
-      font-size: 18px;
-      cursor: pointer;
-    }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ESP32 WebSocket Client</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            text-align: center;
+        }
+        #status {
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+        #messages {
+            border: 1px solid #ccc;
+            padding: 10px;
+            height: 200px;
+            overflow-y: scroll;
+            margin-bottom: 10px;
+            text-align: left;
+        }
+        #messageInput {
+            padding: 5px;
+            width: 200px;
+        }
+        button {
+            padding: 5px 10px;
+            margin-left: 5px;
+        }
+    </style>
 </head>
 <body>
-  <h1>ESP32 Connector</h1>
-  <p>Click below to connect to your ESP32 via WebSocket (in a new tab):</p>
-  <button onclick="connectToESP32()">Connect to ESP32</button>
+    <h1>ESP32 WebSocket Client</h1>
+    <p>Connects to ESP32 at ws://192.168.0.105:81</p>
+    <div id="status">Disconnected</div>
+    <div id="messages"></div>
+    <input type="text" id="messageInput" placeholder="Type a message">
+    <button onclick="sendMessage()">Send</button>
+    <script>
+        const wsUrl = 'ws://192.168.0.105:81';
+        let ws = null;
 
-  <script>
-    function connectToESP32() {
-      const html = `
-        <!DOCTYPE html>
-        <html>
-        <head><title>ESP32 WebSocket</title></head>
-        <body>
-          <h2>Connecting to ESP32...</h2>
-          <script>
-            const socket = new WebSocket("ws://192.168.0.105:81");
-            socket.onopen = () => {
-              document.body.innerHTML += "<p style='color: green;'>Connected to ESP32!</p>";
-              socket.send("Hello from browser!");
+        function updateStatus(message, color) {
+            const statusDiv = document.getElementById('status');
+            statusDiv.textContent = message;
+            statusDiv.style.color = color;
+        }
+
+        function addMessage(message, isSent = false) {
+            const messagesDiv = document.getElementById('messages');
+            const msg = document.createElement('div');
+            msg.textContent = (isSent ? 'Sent: ' : 'Received: ') + message;
+            messagesDiv.appendChild(msg);
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        }
+
+        function connectWebSocket() {
+            ws = new WebSocket(wsUrl);
+
+            ws.onopen = function() {
+                updateStatus('Connected to ESP32', 'green');
+                addMessage('Connected');
             };
-            socket.onmessage = e => {
-              document.body.innerHTML += "<p>ESP32 says: " + e.data + "</p>";
+
+            ws.onmessage = function(event) {
+                addMessage(event.data);
             };
-            socket.onerror = e => {
-              document.body.innerHTML += "<p style='color: red;'>WebSocket error</p>";
-              console.error(e);
+
+            ws.onclose = function() {
+                updateStatus('Disconnected', 'red');
+                addMessage('Disconnected');
+                ws = null;
+                // Attempt to reconnect after 5 seconds
+                setTimeout(connectWebSocket, 5000);
             };
-            socket.onclose = () => {
-              document.body.innerHTML += "<p style='color: orange;'>WebSocket closed</p>";
+
+            ws.onerror = function(error) {
+                console.error('WebSocket Error:', error);
+                updateStatus('Error', 'red');
+                addMessage('Error occurred');
             };
-          <\/script>
-        </body>
-        </html>
-      `;
-      const blob = new Blob([html], { type: "text/html" });
-      const url = URL.createObjectURL(blob);
-      window.open(url, "_blank");
-    }
-  </script>
+        }
+
+        function sendMessage() {
+            const input = document.getElementById('messageInput');
+            const message = input.value.trim();
+            if (message && ws && ws.readyState === WebSocket.OPEN) {
+                ws.send(message);
+                addMessage(message, true);
+                input.value = '';
+            } else {
+                alert('Not connected or empty message');
+            }
+        }
+
+        // Initial connection attempt
+        connectWebSocket();
+    </script>
 </body>
 </html>
