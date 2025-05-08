@@ -1,11 +1,44 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta http-equiv="refresh" content="0; url=http://192.168.0.105/" />
-  <title>Redirecting...</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ESP32 Redirect</title>
+    <script>
+        // Function to try accessing the ESP32 by its IP address (192.168.0.x)
+        function redirectToESP32() {
+            // Use the IP range 192.168.0.x, assuming the ESP32 is somewhere in this range
+            const baseIP = "http://192.168.0.";
+            let found = false;
+
+            // Try each IP from 100 to 200 to find the ESP32
+            for (let i = 100; i <= 200; i++) {
+                let ip = baseIP + i;
+                fetch(ip + "/").then(response => {
+                    if (response.ok) {
+                        // If the ESP32 responds, redirect to the correct IP
+                        window.location.href = ip;
+                        found = true;
+                    }
+                }).catch(() => {
+                    // If the IP doesn't respond, continue checking the next one
+                    return;
+                });
+
+                // Stop checking if we have found the correct IP
+                if (found) break;
+            }
+
+            // If no response is found
+            if (!found) {
+                alert("ESP32 not found on the local network.");
+            }
+        }
+    </script>
 </head>
 <body>
-  <p>If you are not redirected, <a href="http://192.168.0.105/">click here</a>.</p>
+    <h1>ESP32 Redirector</h1>
+    <p>Click the button below to find your ESP32's local IP and redirect to it:</p>
+    <button onclick="redirectToESP32()">Find and Redirect to ESP32</button>
 </body>
 </html>
