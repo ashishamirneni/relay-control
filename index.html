@@ -1,20 +1,40 @@
-<script>
-  let webSocket = new WebSocket("ws://192.168.0.105:81");
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>ESP32 Control Panel</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      text-align: center;
+      margin-top: 100px;
+    }
+    button {
+      padding: 15px 30px;
+      font-size: 18px;
+      background-color: #4CAF50;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+    }
+    button:hover {
+      background-color: #45a049;
+    }
+  </style>
+</head>
+<body>
+  <h1>ESP32 Control Panel</h1>
+  <p>Click the button below to open the local ESP32 interface:</p>
+  <button onclick="openESP32()">Open ESP32 WebSocket Page</button>
 
-webSocket.onopen = function(event) {
-  console.log("WebSocket is open now.");
-};
-
-webSocket.onmessage = function(event) {
-  console.log("Received from ESP32: " + event.data);
-};
-
-webSocket.onclose = function(event) {
-  console.log("WebSocket is closed now.");
-};
-
-webSocket.onerror = function(event) {
-  console.error("WebSocket error:", event);
-};
-
-</script>
+  <script>
+    function openESP32() {
+      // Change this IP to your ESP32's local IP address
+      const esp32Url = 'http://192.168.0.105:81';
+      window.open(esp32Url, '_blank');
+    }
+  </script>
+</body>
+</html>
