@@ -1,78 +1,61 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <meta charset="UTF-8">
-  <title>ESP32 LED Control</title>
+  <title>ESP32 8-Relay Control</title>
   <style>
-    body {
-      font-family: Arial, sans-serif;
-      text-align: center;
-      background: #f0f0f0;
-      padding-top: 50px;
-    }
-    button {
-      font-size: 24px;
-      padding: 15px 30px;
+    body { font-family: sans-serif; text-align: center; background: #f9f9f9; padding: 20px; }
+    h1 { margin-bottom: 20px; }
+    .relay {
       margin: 10px;
-      border: none;
+      padding: 10px;
+      display: inline-block;
+      background: #eee;
       border-radius: 10px;
-      cursor: pointer;
-      box-shadow: 0 4px 8px rgba(0,0,0,0.1);
     }
-    .on {
-      background-color: #4CAF50;
-      color: white;
-    }
-    .off {
-      background-color: #f44336;
-      color: white;
-    }
-    .status {
-      margin-top: 20px;
-      font-size: 20px;
+    .relay button {
+      padding: 10px 20px;
+      margin: 5px;
+      font-size: 16px;
     }
   </style>
 </head>
 <body>
+  <h1>ESP32 8-Relay Control Panel</h1>
+  <div id="relays"></div>
 
-  <h1>ESP32 LED Control</h1>
-
-  <button class="on" onclick="setLED(1)">Turn ON</button>
-  <button class="off" onclick="setLED(0)">Turn OFF</button>
-
-  <div class="status" id="status">Current LED Status: ...</div>
-
-  <!-- Firebase SDKs -->
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
-
   <script>
-    // 🔧 Your Firebase configuration
     const firebaseConfig = {
       apiKey: "AIzaSyAFRKTkIcoocrSjdpNqdNCtElWDjX-AfBo",
       authDomain: "esp32livebutton.firebaseapp.com",
       databaseURL: "https://esp32livebutton-default-rtdb.firebaseio.com",
-      projectId: "esp32livebutton",
-      storageBucket: "esp32livebutton.appspot.com",
-      messagingSenderId: "149531475542",
-      appId: "1:149531475542:web:your-app-id" // optional
+      projectId: "esp32livebutton"
     };
 
     firebase.initializeApp(firebaseConfig);
     const db = firebase.database();
-    const statusEl = document.getElementById("status");
+    const container = document.getElementById("relays");
 
-    // Update LED status in database
-    function setLED(state) {
-      db.ref("ledStatus").set(state);
+    for (let i = 1; i <= 8; i++) {
+      const div = document.createElement("div");
+      div.className = "relay";
+      div.innerHTML = `
+        <h3>Relay ${i}</h3>
+        <button onclick="setRelay(${i}, 1)">ON</button>
+        <button onclick="setRelay(${i}, 0)">OFF</button>
+        <p>Status: <span id="status${i}">...</span></p>
+      `;
+      container.appendChild(div);
+
+      firebase.database().ref("relays/relay" + i).on("value", snap => {
+        document.getElementById("status" + i).innerText = snap.val();
+      });
     }
 
-    // Realtime listener for LED status
-    db.ref("ledStatus").on("value", (snapshot) => {
-      const value = snapshot.val();
-      statusEl.textContent = "Current LED Status: " + value;
-    });
+    function setRelay(num, state) {
+      firebase.database().ref("relays/relay" + num).set(state);
+    }
   </script>
-
 </body>
 </html>
