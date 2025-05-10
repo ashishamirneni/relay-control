@@ -1,130 +1,164 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>ESP32 Firebase Relay Control</title>
-  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>ESP32 Relay Control Panel</title>
+
+  <!-- Firebase SDK -->
+  <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-database.js"></script>
+
   <style>
     body {
       font-family: Arial, sans-serif;
-      background: #f5f5f5;
+      background: #eaeaea;
+      margin: 0;
+      padding: 0;
       text-align: center;
-      padding: 20px;
     }
 
     h1 {
-      color: #333;
+      background-color: #4CAF50;
+      color: white;
+      padding: 20px 0;
+      margin: 0;
     }
 
-    .relay-grid {
+    #status {
+      font-size: 1.2em;
+      margin: 15px;
+    }
+
+    .relay-container {
       display: flex;
       flex-wrap: wrap;
       justify-content: center;
-      gap: 20px;
-      margin-top: 30px;
+      padding: 20px;
+      gap: 15px;
     }
 
-    .relay-box {
-      background: white;
-      border-radius: 10px;
+    .relay {
+      background-color: #fff;
+      border: 1px solid #ccc;
+      border-radius: 12px;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+      width: 160px;
       padding: 15px;
-      box-shadow: 0 4px 8px rgba(0,0,0,0.1);
-      width: 150px;
     }
 
-    .relay-box h3 {
-      margin: 10px 0;
+    .relay h2 {
+      margin: 0 0 10px;
+      font-size: 1.2em;
     }
 
-    .status {
-      margin-top: 10px;
-      font-weight: bold;
-    }
-
-    .on {
-      color: green;
-    }
-
-    .off {
-      color: red;
-    }
-
-    button {
-      padding: 10px;
+    .relay button {
+      padding: 10px 20px;
+      margin: 5px;
+      font-size: 1em;
       border: none;
       border-radius: 6px;
       cursor: pointer;
-      font-weight: bold;
-      width: 60px;
-      margin: 5px;
     }
 
-    .btn-on {
-      background: #4CAF50;
+    .on-btn {
+      background-color: #4CAF50;
       color: white;
     }
 
-    .btn-off {
-      background: #f44336;
+    .off-btn {
+      background-color: #f44336;
       color: white;
+    }
+
+    button:disabled {
+      background-color: #ccc !important;
+      cursor: not-allowed;
+    }
+
+    @media (max-width: 768px) {
+      .relay {
+        width: 90%;
+      }
     }
   </style>
 </head>
 <body>
-  <h1>ESP32 Firebase Relay Control</h1>
-  <div class="relay-grid" id="relayGrid"></div>
+  <h1>ESP32 Relay Control Panel</h1>
+  <div id="status">Device Status: <span id="device-status">Checking...</span></div>
+  <div class="relay-container" id="relay-container"></div>
 
   <script>
-    // Your Firebase config
+    // ✅ Firebase Configuration
     const firebaseConfig = {
       apiKey: "AIzaSyAFRKTkIcoocrSjdpNqdNCtElWDjX-AfBo",
       authDomain: "esp32livebutton.firebaseapp.com",
       databaseURL: "https://esp32livebutton-default-rtdb.firebaseio.com",
-      projectId: "esp32livebutton"
+      projectId: "esp32livebutton",
+      storageBucket: "esp32livebutton.appspot.com",
+      messagingSenderId: "149531475542",
+      appId: "1:149531475542:web:your-app-id"
     };
 
-    firebase.initializeApp(firebaseConfig);
+    // Initialize Firebase
+    const app = firebase.initializeApp(firebaseConfig);
     const db = firebase.database();
 
-    const relayGrid = document.getElementById('relayGrid');
+    const relayContainer = document.getElementById("relay-container");
+    const deviceStatus = document.getElementById("device-status");
 
-    function createRelayUI(index) {
-      const box = document.createElement('div');
-      box.className = 'relay-box';
-      box.id = `relay${index}`;
+    // Render 8 relay buttons
+    for (let i = 1; i <= 8; i++) {
+      const relayDiv = document.createElement("div");
+      relayDiv.className = "relay";
 
-      box.innerHTML = `
-        <h3>Relay ${index + 1}</h3>
-        <button class="btn-on" onclick="setRelay(${index}, 1)">ON</button>
-        <button class="btn-off" onclick="setRelay(${index}, 0)">OFF</button>
-        <div class="status off" id="status${index}">OFF</div>
-      `;
-      relayGrid.appendChild(box);
-    }
+      const title = document.createElement("h2");
+      title.textContent = `Relay ${i}`;
+      relayDiv.appendChild(title);
 
-    function setRelay(index, value) {
-      firebase.database().ref(`relays/relay${index + 1}`).set(value);
-    }
+      const onBtn = document.createElement("button");
+      onBtn.textContent = "ON";
+      onBtn.className = "on-btn";
+      onBtn.onclick = () => db.ref("relays/relay" + i).set(1);
+      relayDiv.appendChild(onBtn);
 
-    function listenToRelay(index) {
-      firebase.database().ref(`relays/relay${index + 1}`).on('value', snapshot => {
-        const val = snapshot.val();
-        const statusEl = document.getElementById(`status${index}`);
-        if (val === 1) {
-          statusEl.textContent = 'ON';
-          statusEl.className = 'status on';
-        } else {
-          statusEl.textContent = 'OFF';
-          statusEl.className = 'status off';
-        }
+      const offBtn = document.createElement("button");
+      offBtn.textContent = "OFF";
+      offBtn.className = "off-btn";
+      offBtn.onclick = () => db.ref("relays/relay" + i).set(0);
+      relayDiv.appendChild(offBtn);
+
+      // Listen for changes
+      db.ref("relays/relay" + i).on("value", (snap) => {
+        const state = snap.val();
+        onBtn.disabled = state === 1;
+        offBtn.disabled = state === 0;
       });
+
+      relayContainer.appendChild(relayDiv);
     }
 
-    for (let i = 0; i < 8; i++) {
-      createRelayUI(i);
-      listenToRelay(i);
+    // 🔄 Online status check logic
+    function checkOnlineStatus() {
+      const randomNumber = Math.floor(Math.random() * 1000);
+      db.ref("status/random_in").set(randomNumber);
+      setTimeout(() => {
+        db.ref("status/random_out").once("value").then((snap) => {
+          const received = snap.val();
+          if (received === randomNumber + 10) {
+            deviceStatus.textContent = "Online";
+            deviceStatus.style.color = "green";
+          } else {
+            deviceStatus.textContent = "Offline";
+            deviceStatus.style.color = "red";
+          }
+        });
+      }, 1500);
     }
+
+    // Run checker every 5 seconds
+    setInterval(checkOnlineStatus, 5000);
+    checkOnlineStatus();
   </script>
 </body>
 </html>
