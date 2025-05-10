@@ -1,31 +1,82 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>ESP32 8-Relay Control</title>
+  <meta charset="UTF-8">
+  <title>ESP32 Firebase Relay Control</title>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
   <style>
-    body { font-family: sans-serif; text-align: center; background: #f9f9f9; padding: 20px; }
-    h1 { margin-bottom: 20px; }
-    .relay {
-      margin: 10px;
-      padding: 10px;
-      display: inline-block;
-      background: #eee;
-      border-radius: 10px;
+    body {
+      font-family: Arial, sans-serif;
+      background: #f5f5f5;
+      text-align: center;
+      padding: 20px;
     }
-    .relay button {
-      padding: 10px 20px;
+
+    h1 {
+      color: #333;
+    }
+
+    .relay-grid {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 20px;
+      margin-top: 30px;
+    }
+
+    .relay-box {
+      background: white;
+      border-radius: 10px;
+      padding: 15px;
+      box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+      width: 150px;
+    }
+
+    .relay-box h3 {
+      margin: 10px 0;
+    }
+
+    .status {
+      margin-top: 10px;
+      font-weight: bold;
+    }
+
+    .on {
+      color: green;
+    }
+
+    .off {
+      color: red;
+    }
+
+    button {
+      padding: 10px;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-weight: bold;
+      width: 60px;
       margin: 5px;
-      font-size: 16px;
+    }
+
+    .btn-on {
+      background: #4CAF50;
+      color: white;
+    }
+
+    .btn-off {
+      background: #f44336;
+      color: white;
     }
   </style>
 </head>
 <body>
-  <h1>ESP32 8-Relay Control Panel</h1>
-  <div id="relays"></div>
+  <h1>ESP32 Firebase Relay Control</h1>
+  <div class="relay-grid" id="relayGrid"></div>
 
-  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
   <script>
+    // Your Firebase config
     const firebaseConfig = {
       apiKey: "AIzaSyAFRKTkIcoocrSjdpNqdNCtElWDjX-AfBo",
       authDomain: "esp32livebutton.firebaseapp.com",
@@ -35,26 +86,44 @@
 
     firebase.initializeApp(firebaseConfig);
     const db = firebase.database();
-    const container = document.getElementById("relays");
 
-    for (let i = 1; i <= 8; i++) {
-      const div = document.createElement("div");
-      div.className = "relay";
-      div.innerHTML = `
-        <h3>Relay ${i}</h3>
-        <button onclick="setRelay(${i}, 1)">ON</button>
-        <button onclick="setRelay(${i}, 0)">OFF</button>
-        <p>Status: <span id="status${i}">...</span></p>
+    const relayGrid = document.getElementById('relayGrid');
+
+    function createRelayUI(index) {
+      const box = document.createElement('div');
+      box.className = 'relay-box';
+      box.id = `relay${index}`;
+
+      box.innerHTML = `
+        <h3>Relay ${index + 1}</h3>
+        <button class="btn-on" onclick="setRelay(${index}, 1)">ON</button>
+        <button class="btn-off" onclick="setRelay(${index}, 0)">OFF</button>
+        <div class="status off" id="status${index}">OFF</div>
       `;
-      container.appendChild(div);
+      relayGrid.appendChild(box);
+    }
 
-      firebase.database().ref("relays/relay" + i).on("value", snap => {
-        document.getElementById("status" + i).innerText = snap.val();
+    function setRelay(index, value) {
+      firebase.database().ref(`relays/relay${index + 1}`).set(value);
+    }
+
+    function listenToRelay(index) {
+      firebase.database().ref(`relays/relay${index + 1}`).on('value', snapshot => {
+        const val = snapshot.val();
+        const statusEl = document.getElementById(`status${index}`);
+        if (val === 1) {
+          statusEl.textContent = 'ON';
+          statusEl.className = 'status on';
+        } else {
+          statusEl.textContent = 'OFF';
+          statusEl.className = 'status off';
+        }
       });
     }
 
-    function setRelay(num, state) {
-      firebase.database().ref("relays/relay" + num).set(state);
+    for (let i = 0; i < 8; i++) {
+      createRelayUI(i);
+      listenToRelay(i);
     }
   </script>
 </body>
