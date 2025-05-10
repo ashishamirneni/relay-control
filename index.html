@@ -110,3 +110,10 @@
           statusDiv.classList.add('error');
         });
     }
+
+    // Initial ping and periodic check
+    pingDevice();
+    setInterval(pingDevice, 3000); // Aligned with ESP32 status interval
+  </script>
+</body>
+</html>
