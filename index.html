@@ -2,12 +2,12 @@
 <html>
 <head>
   <meta charset="UTF-8">
-  <title>LED Control</title>
+  <title>ESP32 LED Control</title>
   <style>
     body {
       font-family: Arial, sans-serif;
       text-align: center;
-      background: #f4f4f4;
+      background: #f0f0f0;
       padding-top: 50px;
     }
     button {
@@ -17,9 +17,16 @@
       border: none;
       border-radius: 10px;
       cursor: pointer;
+      box-shadow: 0 4px 8px rgba(0,0,0,0.1);
     }
-    .on { background-color: #4CAF50; color: white; }
-    .off { background-color: #f44336; color: white; }
+    .on {
+      background-color: #4CAF50;
+      color: white;
+    }
+    .off {
+      background-color: #f44336;
+      color: white;
+    }
     .status {
       margin-top: 20px;
       font-size: 20px;
@@ -35,34 +42,37 @@
 
   <div class="status" id="status">Current LED Status: ...</div>
 
+  <!-- Firebase SDKs -->
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+
   <script>
-    // 🔧 Replace with your Firebase config:
+    // 🔧 Your Firebase configuration
     const firebaseConfig = {
-      apiKey: "YOUR_API_KEY",
-      authDomain: "YOUR_PROJECT.firebaseapp.com",
-      databaseURL: "https://YOUR_PROJECT.firebaseio.com",
-      projectId: "YOUR_PROJECT",
-      storageBucket: "YOUR_PROJECT.appspot.com",
-      messagingSenderId: "SENDER_ID",
-      appId: "APP_ID"
+      apiKey: "AIzaSyAFRKTkIcoocrSjdpNqdNCtElWDjX-AfBo",
+      authDomain: "esp32livebutton.firebaseapp.com",
+      databaseURL: "https://esp32livebutton-default-rtdb.firebaseio.com",
+      projectId: "esp32livebutton",
+      storageBucket: "esp32livebutton.appspot.com",
+      messagingSenderId: "149531475542",
+      appId: "1:149531475542:web:your-app-id" // optional
     };
 
     firebase.initializeApp(firebaseConfig);
     const db = firebase.database();
     const statusEl = document.getElementById("status");
 
-    // Write to /ledStatus
+    // Update LED status in database
     function setLED(state) {
       db.ref("ledStatus").set(state);
     }
 
-    // Listen to /ledStatus changes
+    // Realtime listener for LED status
     db.ref("ledStatus").on("value", (snapshot) => {
       const value = snapshot.val();
       statusEl.textContent = "Current LED Status: " + value;
     });
   </script>
+
 </body>
 </html>
