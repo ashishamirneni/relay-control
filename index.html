@@ -1,164 +1,112 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>ESP32 Relay Control Panel</title>
-
-  <!-- Firebase SDK -->
-  <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-database.js"></script>
-
+  <title>ESP32 Relay Dashboard</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <style>
-    body {
-      font-family: Arial, sans-serif;
-      background: #eaeaea;
-      margin: 0;
-      padding: 0;
-      text-align: center;
-    }
-
-    h1 {
-      background-color: #4CAF50;
-      color: white;
-      padding: 20px 0;
-      margin: 0;
-    }
-
-    #status {
-      font-size: 1.2em;
-      margin: 15px;
-    }
-
-    .relay-container {
-      display: flex;
-      flex-wrap: wrap;
-      justify-content: center;
-      padding: 20px;
-      gap: 15px;
-    }
-
-    .relay {
-      background-color: #fff;
-      border: 1px solid #ccc;
-      border-radius: 12px;
-      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-      width: 160px;
-      padding: 15px;
-    }
-
-    .relay h2 {
-      margin: 0 0 10px;
-      font-size: 1.2em;
-    }
-
-    .relay button {
-      padding: 10px 20px;
-      margin: 5px;
-      font-size: 1em;
-      border: none;
-      border-radius: 6px;
-      cursor: pointer;
-    }
-
-    .on-btn {
-      background-color: #4CAF50;
-      color: white;
-    }
-
-    .off-btn {
-      background-color: #f44336;
-      color: white;
-    }
-
-    button:disabled {
-      background-color: #ccc !important;
-      cursor: not-allowed;
-    }
-
-    @media (max-width: 768px) {
-      .relay {
-        width: 90%;
-      }
-    }
+    body { font-family: sans-serif; text-align: center; margin: 0; padding: 20px; background: #f5f5f5; }
+    h1 { color: #333; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 15px; max-width: 800px; margin: auto; }
+    .relay { background: #fff; border-radius: 10px; padding: 20px; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
+    button { width: 100%; padding: 12px; margin: 5px 0; font-size: 16px; border: none; border-radius: 5px; cursor: pointer; transition: background 0.3s; }
+    .on { background-color: #28a745; color: white; }
+    .off { background-color: #dc3545; color: white; }
+    .disabled { background-color: #6c757d; cursor: not-allowed; opacity: 0.7; }
+    .status { margin: 20px; font-weight: bold; font-size: 18px; }
+    .error { color: #dc3545; }
+    @media (max-width: 600px) { .grid { grid-template-columns: 1fr; } }
   </style>
 </head>
 <body>
-  <h1>ESP32 Relay Control Panel</h1>
-  <div id="status">Device Status: <span id="device-status">Checking...</span></div>
-  <div class="relay-container" id="relay-container"></div>
+  <h1>ESP32 Relay Control</h1>
+  <div id="status" class="status">Checking device status...</div>
+  <div class="grid" id="relays"></div>
 
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
   <script>
-    // ✅ Firebase Configuration
-    const firebaseConfig = {
+    const config = {
       apiKey: "AIzaSyAFRKTkIcoocrSjdpNqdNCtElWDjX-AfBo",
       authDomain: "esp32livebutton.firebaseapp.com",
       databaseURL: "https://esp32livebutton-default-rtdb.firebaseio.com",
       projectId: "esp32livebutton",
-      storageBucket: "esp32livebutton.appspot.com",
-      messagingSenderId: "149531475542",
-      appId: "1:149531475542:web:your-app-id"
     };
 
-    // Initialize Firebase
-    const app = firebase.initializeApp(firebaseConfig);
+    firebase.initializeApp(config);
     const db = firebase.database();
+    const relaysDiv = document.getElementById('relays');
+    const statusDiv = document.getElementById('status');
+    const relayStates = new Array(8).fill(false);
 
-    const relayContainer = document.getElementById("relay-container");
-    const deviceStatus = document.getElementById("device-status");
-
-    // Render 8 relay buttons
-    for (let i = 1; i <= 8; i++) {
-      const relayDiv = document.createElement("div");
-      relayDiv.className = "relay";
-
-      const title = document.createElement("h2");
-      title.textContent = `Relay ${i}`;
-      relayDiv.appendChild(title);
-
-      const onBtn = document.createElement("button");
-      onBtn.textContent = "ON";
-      onBtn.className = "on-btn";
-      onBtn.onclick = () => db.ref("relays/relay" + i).set(1);
-      relayDiv.appendChild(onBtn);
-
-      const offBtn = document.createElement("button");
-      offBtn.textContent = "OFF";
-      offBtn.className = "off-btn";
-      offBtn.onclick = () => db.ref("relays/relay" + i).set(0);
-      relayDiv.appendChild(offBtn);
-
-      // Listen for changes
-      db.ref("relays/relay" + i).on("value", (snap) => {
-        const state = snap.val();
-        onBtn.disabled = state === 1;
-        offBtn.disabled = state === 0;
-      });
-
-      relayContainer.appendChild(relayDiv);
-    }
-
-    // 🔄 Online status check logic
-    function checkOnlineStatus() {
-      const randomNumber = Math.floor(Math.random() * 1000);
-      db.ref("status/random_in").set(randomNumber);
-      setTimeout(() => {
-        db.ref("status/random_out").once("value").then((snap) => {
-          const received = snap.val();
-          if (received === randomNumber + 10) {
-            deviceStatus.textContent = "Online";
-            deviceStatus.style.color = "green";
-          } else {
-            deviceStatus.textContent = "Offline";
-            deviceStatus.style.color = "red";
-          }
+    function updateRelay(i, state) {
+      relayStates[i] = state;
+      db.ref("/relays/relay" + (i + 1)).set(state)
+        .then(() => console.log(`Relay ${i + 1} set to ${state}`))
+        .catch(error => {
+          console.error(`Failed to update relay ${i + 1}:`, error);
+          statusDiv.innerText = "⚠️ Error updating relay";
+          statusDiv.classList.add('error');
         });
-      }, 1500);
     }
 
-    // Run checker every 5 seconds
-    setInterval(checkOnlineStatus, 5000);
-    checkOnlineStatus();
-  </script>
-</body>
-</html>
+    function createRelayCard(i) {
+      const div = document.createElement("div");
+      div.className = "relay";
+      const title = document.createElement("h3");
+      title.innerText = `Relay ${i + 1}`;
+      const onBtn = document.createElement("button");
+      const offBtn = document.createElement("button");
+      onBtn.innerText = "ON";
+      offBtn.innerText = "OFF";
+      onBtn.className = "on";
+      offBtn.className = "off";
+
+      onBtn.onclick = () => updateRelay(i, 1);
+      offBtn.onclick = () => updateRelay(i, 0);
+
+      div.appendChild(title);
+      div.appendChild(onBtn);
+      div.appendChild(offBtn);
+      relaysDiv.appendChild(div);
+
+      // Listen for real-time changes
+      db.ref("/relays/relay" + (i + 1)).on("value", snapshot => {
+        const val = snapshot.val();
+        onBtn.className = val ? "on disabled" : "on";
+        offBtn.className = val ? "off" : "off disabled";
+        relayStates[i] = val;
+      }, error => {
+        console.error(`Error listening to relay ${i + 1}:`, error);
+        statusDiv.innerText = "⚠️ Database connection error";
+        statusDiv.classList.add('error');
+      });
+    }
+
+    for (let i = 0; i < 8; i++) createRelayCard(i);
+
+    function generateRandom() {
+      return Math.floor(Math.random() * 1000);
+    }
+
+    function pingDevice() {
+      const rand = generateRandom();
+      db.ref("/status/random_in").set(rand)
+        .then(() => {
+          setTimeout(() => {
+            db.ref("/status/random_out").once("value", snapshot => {
+              const response = snapshot.val();
+              const online = response === rand + 10;
+              statusDiv.innerText = online ? "✅ Device Online" : "❌ Device Offline";
+              statusDiv.classList.remove('error');
+            }, error => {
+              statusDiv.innerText = "⚠️ Error checking status";
+              statusDiv.classList.add('error');
+            });
+          }, 1000); // Reduced timeout to align with ESP32
+        })
+        .catch(error => {
+          console.error("Ping failed:", error);
+          statusDiv.innerText = "⚠️ Error pinging device";
+          statusDiv.classList.add('error');
+        });
+    }
