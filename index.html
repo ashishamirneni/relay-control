@@ -1,162 +1,61 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>ESP32 Relay & LED Dashboard</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ESP32 8-Relay Control</title>
   <style>
-    body { font-family: sans-serif; text-align: center; margin: 0; padding: 20px; background: #f5f5f5; }
-    h1 { color: #333; }
-    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 15px; max-width: 800px; margin: auto; }
-    .relay, .led { background: #fff; border-radius: 10px; padding: 20px; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
-    button { width: 100%; padding: 12px; margin: 5px 0; font-size: 16px; border: none; border-radius: 5px; cursor: pointer; transition: background 0.3s; }
-    .on { background-color: #28a745; color: white; }
-    .off { background-color: #dc3545; color: white; }
-    .disabled { background-color: #6c757d; cursor: not-allowed; opacity: 0.7; }
-    .status { margin: 20px; font-weight: bold; font-size: 18px; }
-    .error { color: #dc3545; }
-    @media (max-width: 600px) { .grid { grid-template-columns: 1fr; } }
+    body { font-family: sans-serif; text-align: center; background: #f9f9f9; padding: 20px; }
+    h1 { margin-bottom: 20px; }
+    .relay {
+      margin: 10px;
+      padding: 10px;
+      display: inline-block;
+      background: #eee;
+      border-radius: 10px;
+    }
+    .relay button {
+      padding: 10px 20px;
+      margin: 5px;
+      font-size: 16px;
+    }
   </style>
 </head>
 <body>
-  <h1>ESP32 Relay & LED Control</h1>
-  <div id="status" class="status">Checking device status...</div>
-  <div class="grid" id="controls"></div>
+  <h1>ESP32 8-Relay Control Panel</h1>
+  <div id="relays"></div>
 
-  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
   <script>
-    const config = {
+    const firebaseConfig = {
       apiKey: "AIzaSyAFRKTkIcoocrSjdpNqdNCtElWDjX-AfBo",
       authDomain: "esp32livebutton.firebaseapp.com",
       databaseURL: "https://esp32livebutton-default-rtdb.firebaseio.com",
-      projectId: "esp32livebutton",
+      projectId: "esp32livebutton"
     };
 
-    firebase.initializeApp(config);
+    firebase.initializeApp(firebaseConfig);
     const db = firebase.database();
-    const controlsDiv = document.getElementById('controls');
-    const statusDiv = document.getElementById('status');
-    const relayStates = new Array(8).fill(false);
-    let ledState = false;
+    const container = document.getElementById("relays");
 
-    function updateRelay(i, state) {
-      relayStates[i] = state;
-      db.ref("/relays/relay" + (i + 1)).set(state)
-        .then(() => console.log(`Relay ${i + 1} set to ${state}`))
-        .catch(error => {
-          console.error(`Failed to update relay ${i + 1}:`, error);
-          statusDiv.innerText = "⚠️ Error updating relay";
-          statusDiv.classList.add('error');
-        });
-    }
-
-    function updateLed(state) {
-      ledState = state;
-      db.ref("/ledStatus").set(state)
-        .then(() => console.log(`LED set to ${state}`))
-        .catch(error => {
-          console.error("Failed to update LED:", error);
-          statusDiv.innerText = "⚠️ Error updating LED";
-          statusDiv.classList.add('error');
-        });
-    }
-
-    function createLedCard() {
-      const div = document.createElement("div");
-      div.className = "led";
-      const title = document.createElement("h3");
-      title.innerText = "LED";
-      const onBtn = document.createElement("button");
-      const offBtn = document.createElement("button");
-      onBtn.innerText = "ON";
-      offBtn.innerText = "OFF";
-      onBtn.className = "on";
-      offBtn.className = "off";
-
-      onBtn.onclick = () => updateLed(1);
-      offBtn.onclick = () => updateLed(0);
-
-      div.appendChild(title);
-      div.appendChild(onBtn);
-      div.appendChild(offBtn);
-      controlsDiv.appendChild(div);
-
-      db.ref("/ledStatus").on("value", snapshot => {
-        const val = snapshot.val();
-        onBtn.className = val ? "on disabled" : "on";
-        offBtn.className = val ? "off" : "off disabled";
-        ledState = val;
-      }, error => {
-        console.error("Error listening to /ledStatus:", error);
-        statusDiv.innerText = "⚠️ Database connection error";
-        statusDiv.classList.add('error');
-      });
-    }
-
-    function createRelayCard(i) {
+    for (let i = 1; i <= 8; i++) {
       const div = document.createElement("div");
       div.className = "relay";
-      const title = document.createElement("h3");
-      title.innerText = `Relay ${i + 1}`;
-      const onBtn = document.createElement("button");
-      const offBtn = document.createElement("button");
-      onBtn.innerText = "ON";
-      offBtn.innerText = "OFF";
-      onBtn.className = "on";
-      offBtn.className = "off";
+      div.innerHTML = `
+        <h3>Relay ${i}</h3>
+        <button onclick="setRelay(${i}, 1)">ON</button>
+        <button onclick="setRelay(${i}, 0)">OFF</button>
+        <p>Status: <span id="status${i}">...</span></p>
+      `;
+      container.appendChild(div);
 
-      onBtn.onclick = () => updateRelay(i, 1);
-      offBtn.onclick = () => updateRelay(i, 0);
-
-      div.appendChild(title);
-      div.appendChild(onBtn);
-      div.appendChild(offBtn);
-      controlsDiv.appendChild(div);
-
-      db.ref("/relays/relay" + (i + 1)).on("value", snapshot => {
-        const val = snapshot.val();
-        onBtn.className = val ? "on disabled" : "on";
-        offBtn.className = val ? "off" : "off disabled";
-        relayStates[i] = val;
-      }, error => {
-        console.error(`Error listening to relay ${i + 1}:`, error);
-        statusDiv.innerText = "⚠️ Database connection error";
-        statusDiv.classList.add('error');
+      firebase.database().ref("relays/relay" + i).on("value", snap => {
+        document.getElementById("status" + i).innerText = snap.val();
       });
     }
 
-    createLedCard();
-    for (let i = 0; i < 8; i++) createRelayCard(i);
-
-    function generateRandom() {
-      return Math.floor(Math.random() * 1000);
+    function setRelay(num, state) {
+      firebase.database().ref("relays/relay" + num).set(state);
     }
-
-    function pingDevice() {
-      const rand = generateRandom();
-      db.ref("/status/random_in").set(rand)
-        .then(() => {
-          setTimeout(() => {
-            db.ref("/status/random_out").once("value", snapshot => {
-              const response = snapshot.val();
-              const online = response === rand + 10;
-              statusDiv.innerText = online ? "✅ Device Online" : "❌ Device Offline";
-              statusDiv.classList.remove('error');
-            }, error => {
-              statusDiv.innerText = "⚠️ Error checking status";
-              statusDiv.classList.add('error');
-            });
-          }, 1000);
-        })
-        .catch(error => {
-          console.error("Ping failed:", error);
-          statusDiv.innerText = "⚠️ Error pinging device";
-          statusDiv.classList.add('error');
-        });
-    }
-
-    pingDevice();
-    setInterval(pingDevice, 3000);
   </script>
 </body>
 </html>
