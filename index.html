@@ -1,60 +1,114 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>ESP32 8-Relay Control</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ESP32 Relay Control</title>
   <style>
-    body { font-family: sans-serif; text-align: center; background: #f9f9f9; padding: 20px; }
-    h1 { margin-bottom: 20px; }
+    body {
+      font-family: Arial, sans-serif;
+      background: #121212;
+      color: white;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 20px;
+    }
+    h1 {
+      margin-bottom: 20px;
+    }
+    .relay-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 16px;
+      width: 100%;
+      max-width: 400px;
+    }
     .relay {
-      margin: 10px;
-      padding: 10px;
-      display: inline-block;
-      background: #eee;
-      border-radius: 10px;
+      background: #1e1e1e;
+      padding: 20px;
+      border-radius: 12px;
+      text-align: center;
+      box-shadow: 0 0 10px #00ffcc55;
+    }
+    .relay h2 {
+      margin-bottom: 10px;
     }
     .relay button {
       padding: 10px 20px;
-      margin: 5px;
       font-size: 16px;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: background 0.3s;
+    }
+    .on {
+      background: #00c853;
+      color: white;
+    }
+    .off {
+      background: #d50000;
+      color: white;
     }
   </style>
 </head>
 <body>
-  <h1>ESP32 8-Relay Control Panel</h1>
-  <div id="relays"></div>
+  <h1>ESP32 Relay Control</h1>
+  <div class="relay-grid" id="relayGrid"></div>
 
-  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+  <!-- Firebase App -->
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+
   <script>
+    // Firebase Config
     const firebaseConfig = {
       apiKey: "AIzaSyAFRKTkIcoocrSjdpNqdNCtElWDjX-AfBo",
       authDomain: "esp32livebutton.firebaseapp.com",
-      databaseURL: "https://esp32livebutton-default-rtdb.firebaseio.com",
-      projectId: "esp32livebutton"
+      databaseURL: "https://esp32livebutton-default-rtdb.firebaseio.com/",
+      projectId: "esp32livebutton",
+      storageBucket: "esp32livebutton.appspot.com",
+      messagingSenderId: "YOUR_SENDER_ID",
+      appId: "YOUR_APP_ID"
     };
 
+    // Initialize Firebase
     firebase.initializeApp(firebaseConfig);
     const db = firebase.database();
-    const container = document.getElementById("relays");
 
-    for (let i = 1; i <= 8; i++) {
-      const div = document.createElement("div");
-      div.className = "relay";
-      div.innerHTML = `
-        <h3>Relay ${i}</h3>
-        <button onclick="setRelay(${i}, 1)">ON</button>
-        <button onclick="setRelay(${i}, 0)">OFF</button>
-        <p>Status: <span id="status${i}">...</span></p>
-      `;
-      container.appendChild(div);
+    const relayGrid = document.getElementById('relayGrid');
 
-      firebase.database().ref("relays/relay" + i).on("value", snap => {
-        document.getElementById("status" + i).innerText = snap.val();
+    function createRelayCard(i) {
+      const container = document.createElement('div');
+      container.className = 'relay';
+      const title = document.createElement('h2');
+      title.innerText = `Relay ${i + 1}`;
+
+      const button = document.createElement('button');
+      button.innerText = 'Loading...';
+      button.disabled = true;
+
+      button.onclick = () => {
+        const newVal = button.dataset.state === '1' ? 0 : 1;
+        firebase.database().ref(`/relay${i + 1}`).set(newVal);
+      };
+
+      container.appendChild(title);
+      container.appendChild(button);
+      relayGrid.appendChild(container);
+
+      // Listen to changes
+      firebase.database().ref(`/relay${i + 1}`).on('value', (snap) => {
+        const val = snap.val();
+        button.dataset.state = val;
+        button.innerText = val == 1 ? 'ON' : 'OFF';
+        button.className = val == 1 ? 'on' : 'off';
+        button.disabled = false;
       });
     }
 
-    function setRelay(num, state) {
-      firebase.database().ref("relays/relay" + num).set(state);
+    for (let i = 0; i < 8; i++) {
+      createRelayCard(i);
     }
   </script>
 </body>
