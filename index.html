@@ -1,114 +1,121 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>ESP32 Relay Control</title>
   <style>
     body {
       font-family: Arial, sans-serif;
-      background: #121212;
-      color: white;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
+      text-align: center;
       padding: 20px;
+      background: #f0f2f5;
     }
     h1 {
-      margin-bottom: 20px;
+      color: #333;
     }
-    .relay-grid {
-      display: grid;
-      grid-template-columns: repeat(2, 1fr);
-      gap: 16px;
-      width: 100%;
-      max-width: 400px;
+    .relay-container {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 15px;
+      margin-top: 30px;
     }
     .relay {
-      background: #1e1e1e;
+      background: #fff;
+      border: 1px solid #ddd;
       padding: 20px;
-      border-radius: 12px;
-      text-align: center;
-      box-shadow: 0 0 10px #00ffcc55;
+      width: 150px;
+      border-radius: 10px;
+      box-shadow: 0 0 8px rgba(0, 0, 0, 0.05);
     }
-    .relay h2 {
+    .relay h3 {
       margin-bottom: 10px;
     }
-    .relay button {
-      padding: 10px 20px;
-      font-size: 16px;
+    .relay-status {
+      font-weight: bold;
+      margin-bottom: 10px;
+    }
+    .btn {
+      padding: 10px 15px;
       border: none;
-      border-radius: 8px;
+      border-radius: 5px;
+      font-size: 16px;
       cursor: pointer;
-      transition: background 0.3s;
     }
     .on {
-      background: #00c853;
+      background-color: #28a745;
       color: white;
     }
     .off {
-      background: #d50000;
+      background-color: #dc3545;
       color: white;
     }
   </style>
 </head>
 <body>
-  <h1>ESP32 Relay Control</h1>
-  <div class="relay-grid" id="relayGrid"></div>
+  <h1>ESP32 Relay Controller</h1>
+  <div class="relay-container" id="relayContainer"></div>
 
-  <!-- Firebase App -->
+  <!-- Firebase SDK -->
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
 
   <script>
-    // Firebase Config
+    // Firebase config
     const firebaseConfig = {
       apiKey: "AIzaSyAFRKTkIcoocrSjdpNqdNCtElWDjX-AfBo",
       authDomain: "esp32livebutton.firebaseapp.com",
       databaseURL: "https://esp32livebutton-default-rtdb.firebaseio.com/",
       projectId: "esp32livebutton",
       storageBucket: "esp32livebutton.appspot.com",
-      messagingSenderId: "YOUR_SENDER_ID",
-      appId: "YOUR_APP_ID"
+      messagingSenderId: "397440760232",
+      appId: "1:397440760232:web:1690d0e6f0e8fd16fae9df"
     };
 
     // Initialize Firebase
     firebase.initializeApp(firebaseConfig);
     const db = firebase.database();
 
-    const relayGrid = document.getElementById('relayGrid');
+    const relayContainer = document.getElementById('relayContainer');
 
-    function createRelayCard(i) {
-      const container = document.createElement('div');
-      container.className = 'relay';
-      const title = document.createElement('h2');
-      title.innerText = `Relay ${i + 1}`;
+    for (let i = 1; i <= 8; i++) {
+      const relayDiv = document.createElement('div');
+      relayDiv.className = 'relay';
+      relayDiv.id = 'relay' + i;
+      relayDiv.innerHTML = `
+        <h3>Relay ${i}</h3>
+        <div class="relay-status" id="status${i}">Loading...</div>
+        <button class="btn off" id="btn${i}" onclick="toggleRelay(${i})">Toggle</button>
+      `;
+      relayContainer.appendChild(relayDiv);
 
-      const button = document.createElement('button');
-      button.innerText = 'Loading...';
-      button.disabled = true;
-
-      button.onclick = () => {
-        const newVal = button.dataset.state === '1' ? 0 : 1;
-        firebase.database().ref(`/relay${i + 1}`).set(newVal);
-      };
-
-      container.appendChild(title);
-      container.appendChild(button);
-      relayGrid.appendChild(container);
-
-      // Listen to changes
-      firebase.database().ref(`/relay${i + 1}`).on('value', (snap) => {
-        const val = snap.val();
-        button.dataset.state = val;
-        button.innerText = val == 1 ? 'ON' : 'OFF';
-        button.className = val == 1 ? 'on' : 'off';
-        button.disabled = false;
+      // Live update from Firebase
+      db.ref('onoffStatus' + i).on('value', (snapshot) => {
+        const val = snapshot.val();
+        const statusEl = document.getElementById('status' + i);
+        const btn = document.getElementById('btn' + i);
+        if (val === 1) {
+          statusEl.textContent = 'ON';
+          statusEl.style.color = 'green';
+          btn.classList.remove('off');
+          btn.classList.add('on');
+        } else {
+          statusEl.textContent = 'OFF';
+          statusEl.style.color = 'red';
+          btn.classList.remove('on');
+          btn.classList.add('off');
+        }
       });
     }
 
-    for (let i = 0; i < 8; i++) {
-      createRelayCard(i);
+    function toggleRelay(index) {
+      const relayPath = 'relay' + index;
+      db.ref(relayPath).once('value').then((snapshot) => {
+        const current = snapshot.val() || 0;
+        const newVal = current === 1 ? 0 : 1;
+        db.ref(relayPath).set(newVal);
+      });
     }
   </script>
 </body>
