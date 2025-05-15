@@ -1,122 +1,78 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>ESP32 Relay Control</title>
+  <meta charset="UTF-8">
+  <title>ESP32 Relay Status</title>
   <style>
     body {
       font-family: Arial, sans-serif;
-      text-align: center;
-      padding: 20px;
-      background: #f0f2f5;
-    }
-    h1 {
-      color: #333;
-    }
-    .relay-container {
+      background: #f5f5f5;
       display: flex;
-      flex-wrap: wrap;
+      flex-direction: column;
+      align-items: center;
       justify-content: center;
-      gap: 15px;
-      margin-top: 30px;
+      height: 100vh;
     }
-    .relay {
-      background: #fff;
-      border: 1px solid #ddd;
-      padding: 20px;
-      width: 150px;
+    .mode-display {
+      font-size: 2em;
+      color: #333;
+      padding: 20px 40px;
       border-radius: 10px;
-      box-shadow: 0 0 8px rgba(0, 0, 0, 0.05);
-    }
-    .relay h3 {
-      margin-bottom: 10px;
-    }
-    .relay-status {
-      font-weight: bold;
-      margin-bottom: 10px;
-    }
-    .btn {
-      padding: 10px 15px;
-      border: none;
-      border-radius: 5px;
-      font-size: 16px;
-      cursor: pointer;
-    }
-    .on {
-      background-color: #28a745;
-      color: white;
-    }
-    .off {
-      background-color: #dc3545;
-      color: white;
+      background-color: #fff;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.1);
     }
   </style>
 </head>
 <body>
-  <h1>ESP32 Relay Controller</h1>
-  <div class="relay-container" id="relayContainer"></div>
+  <div class="mode-display" id="status">Checking mode...</div>
 
-  <!-- Firebase SDK -->
-  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+  <script type="module">
+    // Import Firebase SDK
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+    import { getDatabase, ref, set, get } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
 
-  <script>
-    // Firebase config
     const firebaseConfig = {
       apiKey: "AIzaSyAFRKTkIcoocrSjdpNqdNCtElWDjX-AfBo",
       authDomain: "esp32livebutton.firebaseapp.com",
-      databaseURL: "https://esp32livebutton-default-rtdb.firebaseio.com/",
-      projectId: "esp32livebutton",
-      storageBucket: "esp32livebutton.appspot.com",
-      messagingSenderId: "397440760232",
-      appId: "1:397440760232:web:1690d0e6f0e8fd16fae9df"
+      databaseURL: "https://esp32livebutton-default-rtdb.firebaseio.com",
+      projectId: "esp32livebutton"
     };
 
     // Initialize Firebase
-    firebase.initializeApp(firebaseConfig);
-    const db = firebase.database();
+    const app = initializeApp(firebaseConfig);
+    const database = getDatabase(app);
 
-    const relayContainer = document.getElementById('relayContainer');
+    const statusDiv = document.getElementById("status");
+    const statusRef = ref(database, 'onlineStatus');
 
-    for (let i = 1; i <= 8; i++) {
-      const relayDiv = document.createElement('div');
-      relayDiv.className = 'relay';
-      relayDiv.id = 'relay' + i;
-      relayDiv.innerHTML = `
-        <h3>Relay ${i}</h3>
-        <div class="relay-status" id="status${i}">Loading...</div>
-        <button class="btn off" id="btn${i}" onclick="toggleRelay(${i})">Toggle</button>
-      `;
-      relayContainer.appendChild(relayDiv);
+    // Step 1: Set onlineStatus to 0 (manual mode)
+    set(statusRef, 0).then(() => {
+      console.log("onlineStatus set to 0");
 
-      // Live update from Firebase
-      db.ref('onoffStatus' + i).on('value', (snapshot) => {
-        const val = snapshot.val();
-        const statusEl = document.getElementById('status' + i);
-        const btn = document.getElementById('btn' + i);
-        if (val === 1) {
-          statusEl.textContent = 'ON';
-          statusEl.style.color = 'green';
-          btn.classList.remove('off');
-          btn.classList.add('on');
-        } else {
-          statusEl.textContent = 'OFF';
-          statusEl.style.color = 'red';
-          btn.classList.remove('on');
-          btn.classList.add('off');
+      // Step 2: Wait 2-3 seconds, then check status again
+      setTimeout(async () => {
+        try {
+          const snapshot = await get(statusRef);
+          const value = snapshot.val();
+          console.log("onlineStatus is", value);
+
+          if (value === 1) {
+            statusDiv.textContent = "Online Mode";
+            statusDiv.style.color = "green";
+          } else {
+            statusDiv.textContent = "Manual Mode";
+            statusDiv.style.color = "red";
+          }
+        } catch (error) {
+          statusDiv.textContent = "Error reading mode";
+          console.error(error);
         }
-      });
-    }
+      }, 2500); // 2.5 seconds delay
 
-    function toggleRelay(index) {
-      const relayPath = 'relay' + index;
-      db.ref(relayPath).once('value').then((snapshot) => {
-        const current = snapshot.val() || 0;
-        const newVal = current === 1 ? 0 : 1;
-        db.ref(relayPath).set(newVal);
-      });
-    }
+    }).catch((error) => {
+      statusDiv.textContent = "Failed to set onlineStatus";
+      console.error(error);
+    });
   </script>
 </body>
 </html>
