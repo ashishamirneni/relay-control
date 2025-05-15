@@ -2,77 +2,103 @@
 <html>
 <head>
   <meta charset="UTF-8">
-  <title>ESP32 Relay Status</title>
+  <title>ESP32 Online Checker</title>
   <style>
     body {
       font-family: Arial, sans-serif;
-      background: #f5f5f5;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      height: 100vh;
+      background: #f2f2f2;
+      text-align: center;
+      padding-top: 100px;
     }
-    .mode-display {
-      font-size: 2em;
-      color: #333;
-      padding: 20px 40px;
-      border-radius: 10px;
-      background-color: #fff;
+
+    .status-box {
+      display: inline-block;
+      padding: 30px;
+      border-radius: 15px;
+      background: white;
       box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+    }
+
+    .status {
+      font-size: 2rem;
+      font-weight: bold;
+      margin-top: 20px;
+    }
+
+    .online {
+      color: green;
+    }
+
+    .offline {
+      color: red;
     }
   </style>
 </head>
 <body>
-  <div class="mode-display" id="status">Checking mode...</div>
+  <div class="status-box">
+    <h1>ESP32 Connection Status</h1>
+    <div id="status" class="status offline">Checking...</div>
+  </div>
 
   <script type="module">
-    // Import Firebase SDK
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-    import { getDatabase, ref, set, get } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
+    // Firebase SDK import
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-app.js";
+    import { getDatabase, ref, set, onValue } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-database.js";
 
     const firebaseConfig = {
       apiKey: "AIzaSyAFRKTkIcoocrSjdpNqdNCtElWDjX-AfBo",
       authDomain: "esp32livebutton.firebaseapp.com",
-      databaseURL: "https://esp32livebutton-default-rtdb.firebaseio.com",
-      projectId: "esp32livebutton"
+      databaseURL: "https://esp32livebutton-default-rtdb.firebaseio.com/",
+      projectId: "esp32livebutton",
+      storageBucket: "esp32livebutton.appspot.com",
+      messagingSenderId: "397440760232",
+      appId: "1:397440760232:web:1690d0e6f0e8fd16fae9df"
     };
 
-    // Initialize Firebase
     const app = initializeApp(firebaseConfig);
     const database = getDatabase(app);
 
     const statusDiv = document.getElementById("status");
-    const statusRef = ref(database, 'onlineStatus');
+    const pingRef = ref(database, 'status/ping');
 
-    // Step 1: Set onlineStatus to 0 (manual mode)
-    set(statusRef, 0).then(() => {
-      console.log("onlineStatus set to 0");
+    function setStatus(state) {
+      if (state === 'online') {
+        statusDiv.textContent = "ONLINE";
+        statusDiv.classList.remove('offline');
+        statusDiv.classList.add('online');
+      } else {
+        statusDiv.textContent = "OFFLINE";
+        statusDiv.classList.remove('online');
+        statusDiv.classList.add('offline');
+      }
+    }
 
-      // Step 2: Wait 2-3 seconds, then check status again
-      setTimeout(async () => {
-        try {
-          const snapshot = await get(statusRef);
-          const value = snapshot.val();
-          console.log("onlineStatus is", value);
+    function checkESP32Status() {
+      // Step 1: Write 0 to ping
+      set(pingRef, 0);
 
-          if (value === 1) {
-            statusDiv.textContent = "Online Mode";
-            statusDiv.style.color = "green";
-          } else {
-            statusDiv.textContent = "Manual Mode";
-            statusDiv.style.color = "red";
-          }
-        } catch (error) {
-          statusDiv.textContent = "Error reading mode";
-          console.error(error);
+      let onlineDetected = false;
+
+      // Step 2: Listen for ping change to 1
+      const unsubscribe = onValue(pingRef, (snapshot) => {
+        const value = snapshot.val();
+        if (value === 1 && !onlineDetected) {
+          onlineDetected = true;
+          setStatus("online");
         }
-      }, 2500); // 2.5 seconds delay
+      });
 
-    }).catch((error) => {
-      statusDiv.textContent = "Failed to set onlineStatus";
-      console.error(error);
-    });
+      // Step 3: If after 5 seconds, no 1 received → OFFLINE
+      setTimeout(() => {
+        if (!onlineDetected) {
+          setStatus("offline");
+        }
+      }, 5000);
+    }
+
+    // Check every 10 seconds
+    checkESP32Status();
+    setInterval(checkESP32Status, 10000);
   </script>
 </body>
 </html>
