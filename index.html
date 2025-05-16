@@ -1,206 +1,177 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>ESP32 Relay Control</title>
-<style>
-  body { font-family: Arial, sans-serif; background: #f0f0f0; padding: 20px; }
-  h1 { text-align: center; }
-  .mode-toggle { margin: 20px auto; text-align: center; }
-  .relays { max-width: 600px; margin: auto; }
-  .relay {
-    background: white; border-radius: 6px; box-shadow: 0 2px 5px rgba(0,0,0,0.2);
-    margin: 10px 0; padding: 15px;
-    display: flex; flex-direction: column;
-  }
-  .relay-header {
-    display: flex; justify-content: space-between; align-items: center;
-  }
-  .relay-header label {
-    font-weight: bold;
-    font-size: 1.1rem;
-  }
-  button.toggle {
-    padding: 8px 16px;
-    font-size: 1rem;
-    border: none; border-radius: 4px;
-    cursor: pointer;
-  }
-  button.toggle.on { background: #4caf50; color: white; }
-  button.toggle.off { background: #f44336; color: white; }
-  .time-inputs {
-    margin-top: 10px;
-    display: flex; gap: 10px;
-    align-items: center;
-  }
-  .time-inputs label {
-    font-weight: normal;
-  }
-  input[type="time"] {
-    padding: 5px;
-    font-size: 1rem;
-  }
-</style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ESP32 Relay Control</title>
+    <script src="https://cdn.jsdelivr.net/npm/react@18.2.0/umd/react.production.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/react-dom@18.2.0/umd/react-dom.production.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/babel-standalone@7.22.9/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js"></script>
 </head>
-<body>
-<h1>ESP32 Relay Control</h1>
+<body class="bg-gray-100">
+    <div id="root" class="container mx-auto p-4"></div>
 
-<div class="mode-toggle">
-  <label>
-    Mode:
-    <select id="modeSelect">
-      <option value="0">Manual</option>
-      <option value="1">Auto</option>
-    </select>
-  </label>
-</div>
+    <script type="text/babel">
+        const firebaseConfig = {
+            apiKey: "AIzaSyAFRKTkIcoocrSjdpNqdNCtElWDjX-AfBo",
+            databaseURL: "https://esp32livebutton-default-rtdb.firebaseio.com/",
+        };
+        const app = firebase.initializeApp(firebaseConfig);
+        const db = firebase.database();
 
-<div class="relays" id="relaysContainer">
-  <!-- Relays dynamically added here -->
-</div>
+        function RelayCard({ index }) {
+            const [state, setState] = React.useState(false);
+            const [schedule, setSchedule] = React.useState({
+                startHour: 0,
+                startMinute: 0,
+                stopHour: 0,
+                stopMinute: 0,
+                enabled: false
+            });
 
-<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
-<script>
-  // Your Firebase config here (replace with your own)
-  const firebaseConfig = {
-    apiKey: "AIzaSyAFRKTkIcoocrSjdpNqdNCtElWDjX-AfBo",
-    authDomain: "esp32livebutton-default-rtdb.firebaseapp.com",
-    databaseURL: "https://esp32livebutton-default-rtdb.firebaseio.com",
-    projectId: "esp32livebutton-default-rtdb",
-    storageBucket: "esp32livebutton-default-rtdb.appspot.com",
-    messagingSenderId: "your_sender_id",
-    appId: "your_app_id"
-  };
+            React.useEffect(() => {
+                const relayRef = db.ref(`relay${index + 1}`);
+                const scheduleRef = db.ref(`schedule${index + 1}`);
 
-  firebase.initializeApp(firebaseConfig);
-  const db = firebase.database();
+                relayRef.on('value', (snapshot) => {
+                    setState(snapshot.val() === 1);
+                });
 
-  const modeSelect = document.getElementById('modeSelect');
-  const relaysContainer = document.getElementById('relaysContainer');
+                scheduleRef.on('value', (snapshot) => {
+                    setSchedule(snapshot.val() || {
+                        startHour: 0,
+                        startMinute: 0,
+                        stopHour: 0,
+                        stopMinute: 0,
+                        enabled: false
+                    });
+                });
 
-  // Create relay controls dynamically
-  const relayCount = 7;
-  let relayStates = [];
-  let relayTimes = [];
+                return () => {
+                    relayRef.off();
+                    scheduleRef.off();
+                };
+            }, [index]);
 
-  function createRelayUI(index) {
-    const relayDiv = document.createElement('div');
-    relayDiv.classList.add('relay');
-    relayDiv.id = 'relay' + index;
+            const toggleRelay = () => {
+                db.ref(`relay${index + 1}`).set(state ? 0 : 1);
+            };
 
-    relayDiv.innerHTML = `
-      <div class="relay-header">
-        <label>Relay ${index}</label>
-        <button class="toggle off" data-relay="${index}">OFF</button>
-      </div>
-      <div class="time-inputs" style="display:none;">
-        <label>Start: <input type="time" id="startTime${index}"></label>
-        <label>Stop: <input type="time" id="stopTime${index}"></label>
-      </div>
-    `;
+            const updateSchedule = (field, value) => {
+                const newSchedule = { ...schedule, [field]: parseInt(value) || 0 };
+                setSchedule(newSchedule);
+                db.ref(`schedule${index + 1}`).set(newSchedule);
+            };
 
-    relaysContainer.appendChild(relayDiv);
+            const toggleSchedule = () => {
+                const newSchedule = { ...schedule, enabled: !schedule.enabled };
+                setSchedule(newSchedule);
+                db.ref(`schedule${index + 1}`).set(newSchedule);
+            };
 
-    const toggleBtn = relayDiv.querySelector('button.toggle');
-    toggleBtn.addEventListener('click', () => {
-      const newState = toggleBtn.classList.contains('on') ? 0 : 1;
-      setRelayState(index, newState);
-    });
-
-    // Time inputs listeners
-    const startInput = relayDiv.querySelector(`#startTime${index}`);
-    const stopInput = relayDiv.querySelector(`#stopTime${index}`);
-
-    startInput.addEventListener('change', () => {
-      setRelayTime(index, 'start', startInput.value);
-    });
-    stopInput.addEventListener('change', () => {
-      setRelayTime(index, 'stop', stopInput.value);
-    });
-  }
-
-  for(let i = 1; i <= relayCount; i++) {
-    createRelayUI(i);
-  }
-
-  // Read and update mode from Firebase
-  function listenMode() {
-    db.ref('mode').on('value', (snapshot) => {
-      const mode = snapshot.val();
-      modeSelect.value = mode;
-      updateUIByMode(mode);
-    });
-  }
-
-  // Write mode change to Firebase
-  modeSelect.addEventListener('change', () => {
-    const newMode = parseInt(modeSelect.value);
-    db.ref('mode').set(newMode);
-    updateUIByMode(newMode);
-  });
-
-  // Enable/disable time inputs based on mode
-  function updateUIByMode(mode) {
-    for(let i = 1; i <= relayCount; i++) {
-      const relayDiv = document.getElementById('relay' + i);
-      const timeInputs = relayDiv.querySelector('.time-inputs');
-      if(mode === 1) {
-        timeInputs.style.display = 'flex';
-      } else {
-        timeInputs.style.display = 'none';
-      }
-    }
-  }
-
-  // Listen relay states & update UI
-  function listenRelays() {
-    for(let i=1; i <= relayCount; i++) {
-      db.ref('relay' + i).on('value', (snapshot) => {
-        const val = snapshot.val();
-        updateRelayButton(i, val);
-      });
-
-      // Also listen times
-      db.ref(`relayTimes/relay${i}`).on('value', (snapshot) => {
-        const times = snapshot.val();
-        if(times){
-          const startInput = document.getElementById(`startTime${i}`);
-          const stopInput = document.getElementById(`stopTime${i}`);
-          startInput.value = times.start || "";
-          stopInput.value = times.stop || "";
+            return (
+                <div className="bg-white p-4 rounded-lg shadow-md mb-4">
+                    <h2 className="text-lg font-semibold mb-2">Relay {index + 1}</h2>
+                    <div className="flex items-center mb-4">
+                        <span className="mr-2">State:</span>
+                        <button
+                            onClick={toggleRelay}
+                            className={`px-4 py-2 rounded ${state ? 'bg-green-500' : 'bg-red-500'} text-white`}
+                        >
+                            {state ? 'ON' : 'OFF'}
+                        </button>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                        <div>
+                            <label className="block text-sm">Start Time</label>
+                            <input
+                                type="number"
+                                min="0"
+                                max="23"
+                                value={schedule.startHour}
+                                onChange={(e) => updateSchedule('startHour', e.target.value)}
+                                className="w-20 p-1 border rounded"
+                                placeholder="Hour"
+                            />
+                            <input
+                                type="number"
+                                min="0"
+                                max="59"
+                                value={schedule.startMinute}
+                                onChange={(e) => updateSchedule('startMinute', e.target.value)}
+                                className="w-20 p-1 border rounded ml-2"
+                                placeholder="Minute"
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-sm">Stop Time</label>
+                            <input
+                                type="number"
+                                min="0"
+                                max="23"
+                                value={schedule.stopHour}
+                                onChange={(e) => updateSchedule('stopHour', e.target.value)}
+                                className="w-20 p-1 border rounded"
+                                placeholder="Hour"
+                            />
+                            <input
+                                type="number"
+                                min="0"
+                                max="59"
+                                value={schedule.stopMinute}
+                                onChange={(e) => updateSchedule('stopMinute', e.target.value)}
+                                className="w-20 p-1 border rounded ml-2"
+                                placeholder="Minute"
+                            />
+                        </div>
+                    </div>
+                    <div className="mt-4">
+                        <label className="flex items-center">
+                            <input
+                                type="checkbox"
+                                checked={schedule.enabled}
+                                onChange={toggleSchedule}
+                                className="mr-2"
+                            />
+                            Enable Schedule
+                        </label>
+                    </div>
+                </div>
+            );
         }
-      });
-    }
-  }
 
-  function updateRelayButton(index, val) {
-    const relayDiv = document.getElementById('relay' + index);
-    const btn = relayDiv.querySelector('button.toggle');
-    if(val == 1){
-      btn.classList.remove('off');
-      btn.classList.add('on');
-      btn.textContent = "ON";
-    } else {
-      btn.classList.remove('on');
-      btn.classList.add('off');
-      btn.textContent = "OFF";
-    }
-  }
+        function App() {
+            const [onlineStatus, setOnlineStatus] = React.useState(0);
 
-  function setRelayState(index, state) {
-    db.ref('relay' + index).set(state);
-  }
+            React.useEffect(() => {
+                const statusRef = db.ref('onlineStatus');
+                statusRef.on('value', (snapshot) => {
+                    setOnlineStatus(snapshot.val());
+                });
+                return () => statusRef.off();
+            }, []);
 
-  function setRelayTime(index, type, timeStr) {
-    const path = `relayTimes/relay${index}`;
-    db.ref(path).update({ [type]: timeStr });
-  }
+            return (
+                <div className="max-w-2xl mx-auto">
+                    <h1 className="text-2xl font-bold mb-4">ESP32 Relay Control</h1>
+                    <div className="mb-4">
+                        <span className="text-lg">
+                            Status: {onlineStatus === 1 ? 
+                                <span className="text-green-600">Online (Cloud Control)</span> : 
+                                <span className="text-red-600">Offline (Local Control)</span>}
+                        </span>
+                    </div>
+                    {[...Array(7)].map((_, index) => (
+                        <RelayCard key={index} index={index} />
+                    ))}
+                </div>
+            );
+        }
 
-  // Initialize listeners
-  listenMode();
-  listenRelays();
-</script>
+        ReactDOM.render(<App />, document.getElementById('root'));
+    </script>
 </body>
 </html>
