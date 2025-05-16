@@ -69,11 +69,9 @@
 <body>
   <h1>ESP32 Relay Control Panel</h1>
   <div id="status">Connecting...</div>
-
   <div id="relay-controls"></div>
 
   <script>
-    // Firebase Config
     const firebaseConfig = {
       apiKey: "AIzaSyAFRKTkIcoocrSjdpNqdNCtElWDjX-AfBo",
       authDomain: "esp32livebutton.firebaseapp.com",
@@ -84,14 +82,12 @@
       appId: "YOUR_APP_ID"
     };
 
-    // Initialize Firebase
     firebase.initializeApp(firebaseConfig);
     const db = firebase.database();
-
     const relayControls = document.getElementById('relay-controls');
     const status = document.getElementById('status');
 
-    // Create 7 relay toggles
+    // Create toggle switches
     for (let i = 1; i <= 7; i++) {
       const relayDiv = document.createElement('div');
       relayDiv.className = 'relay';
@@ -114,7 +110,6 @@
       relayControls.appendChild(relayDiv);
     }
 
-    // Sync state from Firebase
     function syncState() {
       for (let i = 1; i <= 7; i++) {
         const ref = db.ref(`relay${i}`);
@@ -125,7 +120,6 @@
         });
       }
 
-      // Monitor mode switch
       db.ref("onlineStatus").on('value', snapshot => {
         const val = snapshot.val();
         if (val === 1) {
