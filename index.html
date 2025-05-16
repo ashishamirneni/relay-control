@@ -7,205 +7,235 @@
 <style>
   body {
     font-family: Arial, sans-serif;
-    background: #222;
-    color: #eee;
-    margin: 0; padding: 0;
-    display: flex; flex-direction: column; align-items: center;
+    max-width: 700px;
+    margin: 0 auto;
+    padding: 1rem;
+    background: #f5f5f5;
   }
   h1 {
-    margin: 20px 0;
+    text-align: center;
   }
-  .mode-switch {
-    margin-bottom: 20px;
+  .mode-toggle {
+    margin-bottom: 1rem;
+    text-align: center;
   }
-  .relay-container {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-    gap: 20px;
-    width: 90vw;
-    max-width: 900px;
+  .relay {
+    background: white;
+    border-radius: 8px;
+    padding: 1rem;
+    margin-bottom: 1rem;
+    box-shadow: 0 0 10px rgba(0,0,0,0.1);
   }
-  .relay-card {
-    background: #333;
-    border-radius: 10px;
-    padding: 15px;
+  .relay h2 {
+    margin: 0 0 0.5rem 0;
   }
-  .relay-card h2 {
-    margin: 0 0 10px;
+  .btn {
+    background: #007bff;
+    color: white;
+    border: none;
+    padding: 0.4rem 1rem;
+    border-radius: 5px;
+    cursor: pointer;
+    margin-right: 0.5rem;
+  }
+  .btn.off {
+    background: #aaa;
+  }
+  .schedule {
+    margin-top: 0.5rem;
   }
   label {
-    display: block;
-    margin: 5px 0 3px;
+    margin-right: 0.5rem;
   }
-  input[type="checkbox"] {
-    transform: scale(1.4);
-    margin-right: 10px;
-  }
-  input[type="number"] {
-    width: 60px;
-    font-size: 1rem;
-    padding: 5px;
-    border-radius: 5px;
-    border: none;
-  }
-  button {
-    margin-top: 10px;
-    padding: 10px;
-    width: 100%;
-    background: #06c;
-    border: none;
-    border-radius: 5px;
-    color: white;
-    font-weight: bold;
-    cursor: pointer;
-  }
-  button:active {
-    background: #0053a6;
-  }
-  #status {
-    margin: 10px 0;
-    font-weight: bold;
-    color: #0f0;
+  input[type="time"] {
+    padding: 0.2rem;
   }
 </style>
 </head>
 <body>
 
-<h1>ESP32 Relay Control Panel</h1>
+<h1>ESP32 Relay Control</h1>
 
-<div class="mode-switch">
+<div class="mode-toggle">
   <label>
-    <input type="checkbox" id="modeToggle" />
-    Cloud Mode (On = cloud, Off = manual)
+    <input type="checkbox" id="modeSwitch" /> Cloud Mode (ON) / Manual Mode (OFF)
   </label>
 </div>
 
-<div id="status">Connecting...</div>
+<div id="relaysContainer"></div>
 
-<div class="relay-container" id="relayContainer">
-  <!-- Relay cards will be injected here -->
-</div>
+<script type="module">
+// Firebase v9 Modular SDK imports from CDN
+import { initializeApp } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-app.js";
+import { getDatabase, ref, get, set, onValue } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-database.js";
 
-<script>
-  const relayCount = 7;
-  const relayContainer = document.getElementById('relayContainer');
-  const modeToggle = document.getElementById('modeToggle');
-  const statusEl = document.getElementById('status');
+const firebaseConfig = {
+  apiKey: "AIzaSyAFRKTkIcoocrSjdpNqdNCtElWDjX-AfBo",
+  authDomain: "esp32livebutton.firebaseapp.com",
+  databaseURL: "https://esp32livebutton-default-rtdb.firebaseio.com",
+  projectId: "esp32livebutton"
+};
 
-  // Initialize relay cards UI
-  for (let i = 0; i < relayCount; i++) {
-    const card = document.createElement('div');
-    card.className = 'relay-card';
-    card.id = `relayCard${i+1}`;
-    card.innerHTML = `
-      <h2>Relay ${i+1}</h2>
-      <label><input type="checkbox" class="relaySwitch" data-relay="${i+1}" /> Relay ON/OFF</label>
-      <fieldset>
-        <legend>Schedule</legend>
-        <label>Start Time:
-          <input type="number" class="startHour" min="0" max="23" value="0" /> :
-          <input type="number" class="startMinute" min="0" max="59" value="0" />
-        </label>
-        <label>Stop Time:
-          <input type="number" class="stopHour" min="0" max="23" value="0" /> :
-          <input type="number" class="stopMinute" min="0" max="59" value="0" />
-        </label>
-        <label><input type="checkbox" class="scheduleEnabled" /> Enable Schedule</label>
-        <button class="saveScheduleBtn" data-relay="${i+1}">Save Schedule</button>
-      </fieldset>
-    `;
-    relayContainer.appendChild(card);
-  }
+const app = initializeApp(firebaseConfig);
+const db = getDatabase(app);
 
-  // WebSocket or SSE connection could be used for real-time updates.
-  // For simplicity, use periodic fetch every 5 seconds.
-  async function fetchStatus() {
-    try {
-      const res = await fetch('/status');  // ESP32 should serve JSON data here
-      if (!res.ok) throw new Error('Fetch failed');
-      const data = await res.json();
+const relaysContainer = document.getElementById('relaysContainer');
+const modeSwitch = document.getElementById('modeSwitch');
 
-      modeToggle.checked = data.mode === 1;
-      statusEl.textContent = `Mode: ${modeToggle.checked ? 'Cloud' : 'Manual'}`;
+const NUM_RELAYS = 7;
 
-      for (let i = 0; i < relayCount; i++) {
-        const rNum = i + 1;
-        const relayOn = data.relays[i] === 1;
-        document.querySelector(`#relayCard${rNum} .relaySwitch`).checked = relayOn;
+let schedules = [];
+let cloudStates = [];
+let mode = 0;  // 0=Manual, 1=Cloud
 
-        const sched = data.schedules[i];
-        document.querySelector(`#relayCard${rNum} .startHour`).value = sched.startHour;
-        document.querySelector(`#relayCard${rNum} .startMinute`).value = sched.startMinute;
-        document.querySelector(`#relayCard${rNum} .stopHour`).value = sched.stopHour;
-        document.querySelector(`#relayCard${rNum} .stopMinute`).value = sched.stopMinute;
-        document.querySelector(`#relayCard${rNum} .scheduleEnabled`).checked = sched.enabled;
-      }
-    } catch (e) {
-      statusEl.textContent = 'Failed to connect';
-      console.error(e);
-    }
-  }
+// Initialize UI
+for (let i = 0; i < NUM_RELAYS; i++) {
+  const relayDiv = document.createElement('div');
+  relayDiv.className = 'relay';
+  relayDiv.id = `relay${i}`;
 
-  // Save relay state when toggled (only in cloud mode)
-  relayContainer.addEventListener('change', async e => {
-    if (!modeToggle.checked) return;  // only cloud mode
+  relayDiv.innerHTML = `
+    <h2>Relay ${i + 1}</h2>
+    <button class="btn toggleBtn off" data-index="${i}">OFF</button>
+    <div class="schedule">
+      <label>Start Time: <input type="time" class="startTime" data-index="${i}"></label>
+      <label>Stop Time: <input type="time" class="stopTime" data-index="${i}"></label>
+      <label>Enable: <input type="checkbox" class="enableSchedule" data-index="${i}"></label>
+      <button class="btn saveScheduleBtn" data-index="${i}">Save Schedule</button>
+    </div>
+  `;
+  relaysContainer.appendChild(relayDiv);
+}
 
-    if (e.target.classList.contains('relaySwitch')) {
-      const relayNum = e.target.dataset.relay;
-      const val = e.target.checked ? 1 : 0;
-      try {
-        await fetch(`/relay/${relayNum}`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ state: val }),
-        });
-        statusEl.textContent = `Relay ${relayNum} state updated`;
-      } catch {
-        statusEl.textContent = `Failed to update Relay ${relayNum}`;
-      }
-    } else if (e.target.id === 'modeToggle') {
-      const val = e.target.checked ? 1 : 0;
-      try {
-        await fetch(`/mode`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ mode: val }),
-        });
-        statusEl.textContent = `Mode set to ${val ? 'Cloud' : 'Manual'}`;
-      } catch {
-        statusEl.textContent = `Failed to update mode`;
-      }
+// Load mode from Firebase
+function loadMode() {
+  const modeRef = ref(db, 'onlineStatus');
+  onValue(modeRef, (snapshot) => {
+    if (snapshot.exists()) {
+      mode = snapshot.val();
+      modeSwitch.checked = mode === 1;
+      setControlsEnabled(mode === 1);
     }
   });
+}
 
-  // Save schedule button clicks
-  relayContainer.addEventListener('click', async e => {
-    if (e.target.classList.contains('saveScheduleBtn')) {
-      const relayNum = e.target.dataset.relay;
-      const card = document.querySelector(`#relayCard${relayNum}`);
-
-      const startHour = parseInt(card.querySelector('.startHour').value);
-      const startMinute = parseInt(card.querySelector('.startMinute').value);
-      const stopHour = parseInt(card.querySelector('.stopHour').value);
-      const stopMinute = parseInt(card.querySelector('.stopMinute').value);
-      const enabled = card.querySelector('.scheduleEnabled').checked;
-
-      try {
-        await fetch(`/schedule/${relayNum}`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ startHour, startMinute, stopHour, stopMinute, enabled }),
-        });
-        statusEl.textContent = `Schedule saved for Relay ${relayNum}`;
-      } catch {
-        statusEl.textContent = `Failed to save schedule for Relay ${relayNum}`;
-      }
-    }
+// Enable/disable controls based on mode
+function setControlsEnabled(isCloudMode) {
+  document.querySelectorAll('.toggleBtn').forEach(btn => {
+    btn.disabled = isCloudMode; // disable manual toggles in cloud mode
   });
+  document.querySelectorAll('.startTime, .stopTime, .enableSchedule, .saveScheduleBtn').forEach(el => {
+    el.disabled = !isCloudMode; // schedule editing only in cloud mode
+  });
+}
 
-  // Initial fetch and periodic update
-  fetchStatus();
-  setInterval(fetchStatus, 5000);
+// Load relay states and schedules
+function loadRelayStates() {
+  for (let i = 0; i < NUM_RELAYS; i++) {
+    const relayPath = `relay${i + 1}`;
+    const schedulePath = `schedule${i + 1}`;
+
+    const relayRef = ref(db, relayPath);
+    const scheduleRef = ref(db, schedulePath);
+
+    // Relay state
+    onValue(relayRef, (snapshot) => {
+      if (snapshot.exists()) {
+        const val = snapshot.val();
+        cloudStates[i] = val;
+        updateRelayButton(i, val);
+      }
+    });
+
+    // Schedule
+    onValue(scheduleRef, (snapshot) => {
+      if (snapshot.exists()) {
+        const data = snapshot.val();
+        schedules[i] = data;
+        updateScheduleUI(i, data);
+      }
+    });
+  }
+}
+
+function updateRelayButton(index, state) {
+  const btn = document.querySelector(`.toggleBtn[data-index="${index}"]`);
+  if (!btn) return;
+  if (state === 1) {
+    btn.textContent = 'ON';
+    btn.classList.remove('off');
+  } else {
+    btn.textContent = 'OFF';
+    btn.classList.add('off');
+  }
+}
+
+function updateScheduleUI(index, schedule) {
+  const startInput = document.querySelector(`.startTime[data-index="${index}"]`);
+  const stopInput = document.querySelector(`.stopTime[data-index="${index}"]`);
+  const enableCheckbox = document.querySelector(`.enableSchedule[data-index="${index}"]`);
+  if (!schedule) return;
+
+  startInput.value = padTime(schedule.startHour) + ':' + padTime(schedule.startMinute);
+  stopInput.value = padTime(schedule.stopHour) + ':' + padTime(schedule.stopMinute);
+  enableCheckbox.checked = schedule.enabled;
+}
+
+function padTime(num) {
+  return num.toString().padStart(2, '0');
+}
+
+// Toggle relay manually (only in manual mode)
+relaysContainer.addEventListener('click', (e) => {
+  if (e.target.classList.contains('toggleBtn') && mode === 0) {
+    const index = parseInt(e.target.dataset.index);
+    const newState = cloudStates[index] === 1 ? 0 : 1;
+    set(ref(db, `relay${index + 1}`), newState)
+      .then(() => {
+        cloudStates[index] = newState;
+        updateRelayButton(index, newState);
+      })
+      .catch(err => console.error(err));
+  }
+});
+
+// Save schedule button clicked
+relaysContainer.addEventListener('click', (e) => {
+  if (e.target.classList.contains('saveScheduleBtn') && mode === 1) {
+    const index = parseInt(e.target.dataset.index);
+    const startInput = document.querySelector(`.startTime[data-index="${index}"]`);
+    const stopInput = document.querySelector(`.stopTime[data-index="${index}"]`);
+    const enableCheckbox = document.querySelector(`.enableSchedule[data-index="${index}"]`);
+
+    const [startHour, startMinute] = startInput.value.split(':').map(Number);
+    const [stopHour, stopMinute] = stopInput.value.split(':').map(Number);
+    const enabled = enableCheckbox.checked;
+
+    const scheduleData = {
+      startHour,
+      startMinute,
+      stopHour,
+      stopMinute,
+      enabled
+    };
+
+    set(ref(db, `schedule${index + 1}`), scheduleData)
+      .then(() => alert(`Schedule saved for Relay ${index + 1}`))
+      .catch(err => alert(`Error saving schedule: ${err.message}`));
+  }
+});
+
+// Mode switch changed
+modeSwitch.addEventListener('change', (e) => {
+  const newMode = e.target.checked ? 1 : 0;
+  set(ref(db, 'onlineStatus'), newMode)
+    .catch(err => alert(`Failed to set mode: ${err.message}`));
+});
+
+// Initial load
+loadMode();
+loadRelayStates();
+
 </script>
 
 </body>
