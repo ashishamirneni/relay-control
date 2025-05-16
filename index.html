@@ -1,138 +1,206 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>ESP32 Relay Control</title>
-  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
-  <style>
-    body {
-      font-family: Arial, sans-serif;
-      background: #0f172a;
-      color: #f8fafc;
-      text-align: center;
-      padding: 2rem;
-    }
-    h1 {
-      margin-bottom: 2rem;
-    }
-    .relay {
-      margin: 1rem auto;
-      padding: 1rem;
-      background: #1e293b;
-      border-radius: 12px;
-      max-width: 400px;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
-    .relay span {
-      font-size: 1.2rem;
-    }
-    .toggle {
-      appearance: none;
-      width: 60px;
-      height: 30px;
-      background: #64748b;
-      border-radius: 30px;
-      position: relative;
-      outline: none;
-      cursor: pointer;
-      transition: background 0.3s ease;
-    }
-    .toggle:checked {
-      background: #22c55e;
-    }
-    .toggle::before {
-      content: "";
-      position: absolute;
-      width: 26px;
-      height: 26px;
-      background: white;
-      border-radius: 50%;
-      top: 2px;
-      left: 2px;
-      transition: transform 0.3s ease;
-    }
-    .toggle:checked::before {
-      transform: translateX(30px);
-    }
-    #status {
-      font-size: 1rem;
-      margin-bottom: 1rem;
-      padding: 0.5rem;
-      background: #334155;
-      border-radius: 8px;
-    }
-  </style>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>ESP32 Relay Control</title>
+<style>
+  body { font-family: Arial, sans-serif; background: #f0f0f0; padding: 20px; }
+  h1 { text-align: center; }
+  .mode-toggle { margin: 20px auto; text-align: center; }
+  .relays { max-width: 600px; margin: auto; }
+  .relay {
+    background: white; border-radius: 6px; box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+    margin: 10px 0; padding: 15px;
+    display: flex; flex-direction: column;
+  }
+  .relay-header {
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  .relay-header label {
+    font-weight: bold;
+    font-size: 1.1rem;
+  }
+  button.toggle {
+    padding: 8px 16px;
+    font-size: 1rem;
+    border: none; border-radius: 4px;
+    cursor: pointer;
+  }
+  button.toggle.on { background: #4caf50; color: white; }
+  button.toggle.off { background: #f44336; color: white; }
+  .time-inputs {
+    margin-top: 10px;
+    display: flex; gap: 10px;
+    align-items: center;
+  }
+  .time-inputs label {
+    font-weight: normal;
+  }
+  input[type="time"] {
+    padding: 5px;
+    font-size: 1rem;
+  }
+</style>
 </head>
 <body>
-  <h1>ESP32 Relay Control Panel</h1>
-  <div id="status">Connecting...</div>
-  <div id="relay-controls"></div>
+<h1>ESP32 Relay Control</h1>
 
-  <script>
-    const firebaseConfig = {
-      apiKey: "AIzaSyAFRKTkIcoocrSjdpNqdNCtElWDjX-AfBo",
-      authDomain: "esp32livebutton.firebaseapp.com",
-      databaseURL: "https://esp32livebutton-default-rtdb.firebaseio.com",
-      projectId: "esp32livebutton",
-      storageBucket: "esp32livebutton.appspot.com",
-      messagingSenderId: "YOUR_SENDER_ID",
-      appId: "YOUR_APP_ID"
-    };
+<div class="mode-toggle">
+  <label>
+    Mode:
+    <select id="modeSelect">
+      <option value="0">Manual</option>
+      <option value="1">Auto</option>
+    </select>
+  </label>
+</div>
 
-    firebase.initializeApp(firebaseConfig);
-    const db = firebase.database();
-    const relayControls = document.getElementById('relay-controls');
-    const status = document.getElementById('status');
+<div class="relays" id="relaysContainer">
+  <!-- Relays dynamically added here -->
+</div>
 
-    // Create toggle switches
-    for (let i = 1; i <= 7; i++) {
-      const relayDiv = document.createElement('div');
-      relayDiv.className = 'relay';
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+<script>
+  // Your Firebase config here (replace with your own)
+  const firebaseConfig = {
+    apiKey: "AIzaSyAFRKTkIcoocrSjdpNqdNCtElWDjX-AfBo",
+    authDomain: "esp32livebutton-default-rtdb.firebaseapp.com",
+    databaseURL: "https://esp32livebutton-default-rtdb.firebaseio.com",
+    projectId: "esp32livebutton-default-rtdb",
+    storageBucket: "esp32livebutton-default-rtdb.appspot.com",
+    messagingSenderId: "your_sender_id",
+    appId: "your_app_id"
+  };
 
-      const label = document.createElement('span');
-      label.textContent = `Relay ${i}`;
+  firebase.initializeApp(firebaseConfig);
+  const db = firebase.database();
 
-      const toggle = document.createElement('input');
-      toggle.type = 'checkbox';
-      toggle.className = 'toggle';
-      toggle.id = `relay${i}`;
+  const modeSelect = document.getElementById('modeSelect');
+  const relaysContainer = document.getElementById('relaysContainer');
 
-      toggle.addEventListener('change', () => {
-        const state = toggle.checked ? 1 : 0;
-        db.ref(`relay${i}`).set(state);
+  // Create relay controls dynamically
+  const relayCount = 7;
+  let relayStates = [];
+  let relayTimes = [];
+
+  function createRelayUI(index) {
+    const relayDiv = document.createElement('div');
+    relayDiv.classList.add('relay');
+    relayDiv.id = 'relay' + index;
+
+    relayDiv.innerHTML = `
+      <div class="relay-header">
+        <label>Relay ${index}</label>
+        <button class="toggle off" data-relay="${index}">OFF</button>
+      </div>
+      <div class="time-inputs" style="display:none;">
+        <label>Start: <input type="time" id="startTime${index}"></label>
+        <label>Stop: <input type="time" id="stopTime${index}"></label>
+      </div>
+    `;
+
+    relaysContainer.appendChild(relayDiv);
+
+    const toggleBtn = relayDiv.querySelector('button.toggle');
+    toggleBtn.addEventListener('click', () => {
+      const newState = toggleBtn.classList.contains('on') ? 0 : 1;
+      setRelayState(index, newState);
+    });
+
+    // Time inputs listeners
+    const startInput = relayDiv.querySelector(`#startTime${index}`);
+    const stopInput = relayDiv.querySelector(`#stopTime${index}`);
+
+    startInput.addEventListener('change', () => {
+      setRelayTime(index, 'start', startInput.value);
+    });
+    stopInput.addEventListener('change', () => {
+      setRelayTime(index, 'stop', stopInput.value);
+    });
+  }
+
+  for(let i = 1; i <= relayCount; i++) {
+    createRelayUI(i);
+  }
+
+  // Read and update mode from Firebase
+  function listenMode() {
+    db.ref('mode').on('value', (snapshot) => {
+      const mode = snapshot.val();
+      modeSelect.value = mode;
+      updateUIByMode(mode);
+    });
+  }
+
+  // Write mode change to Firebase
+  modeSelect.addEventListener('change', () => {
+    const newMode = parseInt(modeSelect.value);
+    db.ref('mode').set(newMode);
+    updateUIByMode(newMode);
+  });
+
+  // Enable/disable time inputs based on mode
+  function updateUIByMode(mode) {
+    for(let i = 1; i <= relayCount; i++) {
+      const relayDiv = document.getElementById('relay' + i);
+      const timeInputs = relayDiv.querySelector('.time-inputs');
+      if(mode === 1) {
+        timeInputs.style.display = 'flex';
+      } else {
+        timeInputs.style.display = 'none';
+      }
+    }
+  }
+
+  // Listen relay states & update UI
+  function listenRelays() {
+    for(let i=1; i <= relayCount; i++) {
+      db.ref('relay' + i).on('value', (snapshot) => {
+        const val = snapshot.val();
+        updateRelayButton(i, val);
       });
 
-      relayDiv.appendChild(label);
-      relayDiv.appendChild(toggle);
-      relayControls.appendChild(relayDiv);
-    }
-
-    function syncState() {
-      for (let i = 1; i <= 7; i++) {
-        const ref = db.ref(`relay${i}`);
-        const toggle = document.getElementById(`relay${i}`);
-
-        ref.on('value', (snapshot) => {
-          toggle.checked = snapshot.val() === 1;
-        });
-      }
-
-      db.ref("onlineStatus").on('value', snapshot => {
-        const val = snapshot.val();
-        if (val === 1) {
-          status.textContent = "Online Mode (Cloud Controlled)";
-          status.style.color = "#22c55e";
-        } else {
-          status.textContent = "Offline Mode (Physical Switch)";
-          status.style.color = "#f97316";
+      // Also listen times
+      db.ref(`relayTimes/relay${i}`).on('value', (snapshot) => {
+        const times = snapshot.val();
+        if(times){
+          const startInput = document.getElementById(`startTime${i}`);
+          const stopInput = document.getElementById(`stopTime${i}`);
+          startInput.value = times.start || "";
+          stopInput.value = times.stop || "";
         }
       });
     }
+  }
 
-    syncState();
-  </script>
+  function updateRelayButton(index, val) {
+    const relayDiv = document.getElementById('relay' + index);
+    const btn = relayDiv.querySelector('button.toggle');
+    if(val == 1){
+      btn.classList.remove('off');
+      btn.classList.add('on');
+      btn.textContent = "ON";
+    } else {
+      btn.classList.remove('on');
+      btn.classList.add('off');
+      btn.textContent = "OFF";
+    }
+  }
+
+  function setRelayState(index, state) {
+    db.ref('relay' + index).set(state);
+  }
+
+  function setRelayTime(index, type, timeStr) {
+    const path = `relayTimes/relay${index}`;
+    db.ref(path).update({ [type]: timeStr });
+  }
+
+  // Initialize listeners
+  listenMode();
+  listenRelays();
+</script>
 </body>
 </html>
