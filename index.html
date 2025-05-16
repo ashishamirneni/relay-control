@@ -1,245 +1,144 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>ESP32 Live Button Control</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ESP32 Relay Control</title>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
   <style>
     body {
       font-family: Arial, sans-serif;
-      background: #f7f7f7;
-      margin: 0;
-      padding: 20px;
+      background: #0f172a;
+      color: #f8fafc;
       text-align: center;
+      padding: 2rem;
     }
-
     h1 {
-      margin-bottom: 20px;
+      margin-bottom: 2rem;
     }
-
-    #status {
-      margin-bottom: 15px;
-      font-weight: bold;
-    }
-
-    .container {
-      display: flex;
-      flex-wrap: wrap;
-      justify-content: center;
-    }
-
-    .card {
-      background: white;
+    .relay {
+      margin: 1rem auto;
+      padding: 1rem;
+      background: #1e293b;
       border-radius: 12px;
-      box-shadow: 0 0 10px rgba(0,0,0,0.1);
-      padding: 20px;
-      margin: 10px;
-      width: 200px;
-    }
-
-    button {
-      padding: 10px 20px;
-      margin-top: 10px;
-      border: none;
-      border-radius: 6px;
-      font-size: 16px;
-      cursor: pointer;
-    }
-
-    .on {
-      background-color: #4CAF50;
-      color: white;
-    }
-
-    .off {
-      background-color: #f44336;
-      color: white;
-    }
-
-    label {
-      display: block;
-      margin-top: 10px;
-      font-weight: bold;
-    }
-
-    input[type="time"] {
-      padding: 5px;
-      width: 90%;
-    }
-
-    .toggle-group {
+      max-width: 400px;
       display: flex;
-      flex-wrap: wrap;
-      justify-content: center;
-      gap: 10px;
+      justify-content: space-between;
+      align-items: center;
     }
-
-    .relay-label {
-      margin-top: 10px;
-      font-size: 14px;
+    .relay span {
+      font-size: 1.2rem;
+    }
+    .toggle {
+      appearance: none;
+      width: 60px;
+      height: 30px;
+      background: #64748b;
+      border-radius: 30px;
+      position: relative;
+      outline: none;
+      cursor: pointer;
+      transition: background 0.3s ease;
+    }
+    .toggle:checked {
+      background: #22c55e;
+    }
+    .toggle::before {
+      content: "";
+      position: absolute;
+      width: 26px;
+      height: 26px;
+      background: white;
+      border-radius: 50%;
+      top: 2px;
+      left: 2px;
+      transition: transform 0.3s ease;
+    }
+    .toggle:checked::before {
+      transform: translateX(30px);
+    }
+    #status {
+      font-size: 1rem;
+      margin-bottom: 1rem;
+      padding: 0.5rem;
+      background: #334155;
+      border-radius: 8px;
     }
   </style>
 </head>
 <body>
+  <h1>ESP32 Relay Control Panel</h1>
+  <div id="status">Connecting...</div>
 
-  <h1>ESP32 Live Button</h1>
-  <div id="status">Connecting to Firebase...</div>
-
-  <div class="card">
-    <label for="modeSwitch">Mode: Timer</label>
-    <button id="modeSwitch" class="off">OFF</button>
-  </div>
-
-  <div id="timerSettings" class="card" style="display: none;">
-    <label for="startTime">Start Time:</label>
-    <input type="time" id="startTime"><br>
-    <label for="stopTime">Stop Time:</label>
-    <input type="time" id="stopTime"><br>
-
-    <label>Select Relay to Automate:</label>
-    <div class="toggle-group" id="autoRelayGroup"></div>
-  </div>
-
-  <div id="relayControls" class="container"></div>
-
-  <!-- Firebase SDKs -->
-  <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-database-compat.js"></script>
+  <div id="relay-controls"></div>
 
   <script>
+    // Firebase Config
     const firebaseConfig = {
       apiKey: "AIzaSyAFRKTkIcoocrSjdpNqdNCtElWDjX-AfBo",
       authDomain: "esp32livebutton.firebaseapp.com",
       databaseURL: "https://esp32livebutton-default-rtdb.firebaseio.com",
       projectId: "esp32livebutton",
       storageBucket: "esp32livebutton.appspot.com",
-      messagingSenderId: "149531475542",
-      appId: "1:149531475542:web:randomappid"
+      messagingSenderId: "YOUR_SENDER_ID",
+      appId: "YOUR_APP_ID"
     };
 
+    // Initialize Firebase
     firebase.initializeApp(firebaseConfig);
     const db = firebase.database();
 
-    const modeSwitch = document.getElementById("modeSwitch");
-    const relayControls = document.getElementById("relayControls");
-    const timerSettings = document.getElementById("timerSettings");
-    const status = document.getElementById("status");
-    const autoRelayGroup = document.getElementById("autoRelayGroup");
-    const startTime = document.getElementById("startTime");
-    const stopTime = document.getElementById("stopTime");
+    const relayControls = document.getElementById('relay-controls');
+    const status = document.getElementById('status');
 
-    const totalRelays = 7;
+    // Create 7 relay toggles
+    for (let i = 1; i <= 7; i++) {
+      const relayDiv = document.createElement('div');
+      relayDiv.className = 'relay';
 
-    let currentMode = 0; // 0 = manual, 1 = timer
+      const label = document.createElement('span');
+      label.textContent = `Relay ${i}`;
 
-    // Update mode display
-    function setModeUI(mode) {
-      currentMode = mode;
-      if (mode === 1) {
-        modeSwitch.innerText = "ON";
-        modeSwitch.className = "on";
-        timerSettings.style.display = "block";
-        relayControls.innerHTML = "";
-      } else {
-        modeSwitch.innerText = "OFF";
-        modeSwitch.className = "off";
-        timerSettings.style.display = "none";
-        drawManualRelayControls();
-      }
+      const toggle = document.createElement('input');
+      toggle.type = 'checkbox';
+      toggle.className = 'toggle';
+      toggle.id = `relay${i}`;
+
+      toggle.addEventListener('change', () => {
+        const state = toggle.checked ? 1 : 0;
+        db.ref(`relay${i}`).set(state);
+      });
+
+      relayDiv.appendChild(label);
+      relayDiv.appendChild(toggle);
+      relayControls.appendChild(relayDiv);
     }
 
-    // Draw 7 relays for manual mode
-    function drawManualRelayControls() {
-      relayControls.innerHTML = "";
-      for (let i = 0; i < totalRelays; i++) {
-        const card = document.createElement("div");
-        card.className = "card";
+    // Sync state from Firebase
+    function syncState() {
+      for (let i = 1; i <= 7; i++) {
+        const ref = db.ref(`relay${i}`);
+        const toggle = document.getElementById(`relay${i}`);
 
-        const title = document.createElement("h3");
-        title.innerText = "Relay " + (i + 1);
-
-        const btn = document.createElement("button");
-        btn.id = `relayBtn${i}`;
-
-        db.ref("relays/" + i).on("value", snapshot => {
-          const val = snapshot.val() === 1;
-          btn.innerText = val ? "ON" : "OFF";
-          btn.className = val ? "on" : "off";
+        ref.on('value', (snapshot) => {
+          toggle.checked = snapshot.val() === 1;
         });
-
-        btn.onclick = () => {
-          const newState = btn.innerText === "OFF" ? 1 : 0;
-          db.ref("relays/" + i).set(newState);
-        };
-
-        card.appendChild(title);
-        card.appendChild(btn);
-        relayControls.appendChild(card);
-      }
-    }
-
-    // Draw automation relay selection
-    function drawAutoRelaySelector(selectedIndex = 0) {
-      autoRelayGroup.innerHTML = "";
-      for (let i = 0; i < totalRelays; i++) {
-        const btn = document.createElement("button");
-        btn.innerText = "Relay " + (i + 1);
-        btn.className = i === selectedIndex ? "on" : "off";
-        btn.onclick = () => {
-          db.ref("automation/relayIndex").set(i);
-        };
-        autoRelayGroup.appendChild(btn);
       }
 
-      db.ref("automation/relayIndex").on("value", snapshot => {
-        const idx = snapshot.val();
-        for (let i = 0; i < autoRelayGroup.children.length; i++) {
-          const b = autoRelayGroup.children[i];
-          b.className = i === idx ? "on" : "off";
+      // Monitor mode switch
+      db.ref("onlineStatus").on('value', snapshot => {
+        const val = snapshot.val();
+        if (val === 1) {
+          status.textContent = "Online Mode (Cloud Controlled)";
+          status.style.color = "#22c55e";
+        } else {
+          status.textContent = "Offline Mode (Physical Switch)";
+          status.style.color = "#f97316";
         }
       });
     }
 
-    // Load current mode from Firebase
-    db.ref("mode").on("value", snapshot => {
-      const mode = snapshot.val() || 0;
-      setModeUI(mode);
-    });
-
-    // Start/Stop time
-    db.ref("automation/startTime").on("value", snap => {
-      startTime.value = snap.val() || "08:00";
-    });
-
-    db.ref("automation/stopTime").on("value", snap => {
-      stopTime.value = snap.val() || "20:00";
-    });
-
-    startTime.addEventListener("change", () => {
-      db.ref("automation/startTime").set(startTime.value);
-    });
-
-    stopTime.addEventListener("change", () => {
-      db.ref("automation/stopTime").set(stopTime.value);
-    });
-
-    // Mode switch click
-    modeSwitch.onclick = () => {
-      const newMode = currentMode === 1 ? 0 : 1;
-      db.ref("mode").set(newMode);
-    };
-
-    // Firebase connection status
-    db.ref(".info/connected").on("value", snap => {
-      if (snap.val() === true) {
-        status.innerText = "Connected to Firebase!";
-      } else {
-        status.innerText = "Disconnected from Firebase";
-      }
-    });
-
-    // Init
-    drawAutoRelaySelector();
+    syncState();
   </script>
 </body>
 </html>
