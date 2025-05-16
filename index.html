@@ -1,177 +1,212 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ESP32 Relay Control</title>
-    <script src="https://cdn.jsdelivr.net/npm/react@18.2.0/umd/react.production.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/react-dom@18.2.0/umd/react-dom.production.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/babel-standalone@7.22.9/babel.min.js"></script>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js"></script>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>ESP32 Relay Control</title>
+<style>
+  body {
+    font-family: Arial, sans-serif;
+    background: #222;
+    color: #eee;
+    margin: 0; padding: 0;
+    display: flex; flex-direction: column; align-items: center;
+  }
+  h1 {
+    margin: 20px 0;
+  }
+  .mode-switch {
+    margin-bottom: 20px;
+  }
+  .relay-container {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 20px;
+    width: 90vw;
+    max-width: 900px;
+  }
+  .relay-card {
+    background: #333;
+    border-radius: 10px;
+    padding: 15px;
+  }
+  .relay-card h2 {
+    margin: 0 0 10px;
+  }
+  label {
+    display: block;
+    margin: 5px 0 3px;
+  }
+  input[type="checkbox"] {
+    transform: scale(1.4);
+    margin-right: 10px;
+  }
+  input[type="number"] {
+    width: 60px;
+    font-size: 1rem;
+    padding: 5px;
+    border-radius: 5px;
+    border: none;
+  }
+  button {
+    margin-top: 10px;
+    padding: 10px;
+    width: 100%;
+    background: #06c;
+    border: none;
+    border-radius: 5px;
+    color: white;
+    font-weight: bold;
+    cursor: pointer;
+  }
+  button:active {
+    background: #0053a6;
+  }
+  #status {
+    margin: 10px 0;
+    font-weight: bold;
+    color: #0f0;
+  }
+</style>
 </head>
-<body class="bg-gray-100">
-    <div id="root" class="container mx-auto p-4"></div>
+<body>
 
-    <script type="text/babel">
-        const firebaseConfig = {
-            apiKey: "AIzaSyAFRKTkIcoocrSjdpNqdNCtElWDjX-AfBo",
-            databaseURL: "https://esp32livebutton-default-rtdb.firebaseio.com/",
-        };
-        const app = firebase.initializeApp(firebaseConfig);
-        const db = firebase.database();
+<h1>ESP32 Relay Control Panel</h1>
 
-        function RelayCard({ index }) {
-            const [state, setState] = React.useState(false);
-            const [schedule, setSchedule] = React.useState({
-                startHour: 0,
-                startMinute: 0,
-                stopHour: 0,
-                stopMinute: 0,
-                enabled: false
-            });
+<div class="mode-switch">
+  <label>
+    <input type="checkbox" id="modeToggle" />
+    Cloud Mode (On = cloud, Off = manual)
+  </label>
+</div>
 
-            React.useEffect(() => {
-                const relayRef = db.ref(`relay${index + 1}`);
-                const scheduleRef = db.ref(`schedule${index + 1}`);
+<div id="status">Connecting...</div>
 
-                relayRef.on('value', (snapshot) => {
-                    setState(snapshot.val() === 1);
-                });
+<div class="relay-container" id="relayContainer">
+  <!-- Relay cards will be injected here -->
+</div>
 
-                scheduleRef.on('value', (snapshot) => {
-                    setSchedule(snapshot.val() || {
-                        startHour: 0,
-                        startMinute: 0,
-                        stopHour: 0,
-                        stopMinute: 0,
-                        enabled: false
-                    });
-                });
+<script>
+  const relayCount = 7;
+  const relayContainer = document.getElementById('relayContainer');
+  const modeToggle = document.getElementById('modeToggle');
+  const statusEl = document.getElementById('status');
 
-                return () => {
-                    relayRef.off();
-                    scheduleRef.off();
-                };
-            }, [index]);
+  // Initialize relay cards UI
+  for (let i = 0; i < relayCount; i++) {
+    const card = document.createElement('div');
+    card.className = 'relay-card';
+    card.id = `relayCard${i+1}`;
+    card.innerHTML = `
+      <h2>Relay ${i+1}</h2>
+      <label><input type="checkbox" class="relaySwitch" data-relay="${i+1}" /> Relay ON/OFF</label>
+      <fieldset>
+        <legend>Schedule</legend>
+        <label>Start Time:
+          <input type="number" class="startHour" min="0" max="23" value="0" /> :
+          <input type="number" class="startMinute" min="0" max="59" value="0" />
+        </label>
+        <label>Stop Time:
+          <input type="number" class="stopHour" min="0" max="23" value="0" /> :
+          <input type="number" class="stopMinute" min="0" max="59" value="0" />
+        </label>
+        <label><input type="checkbox" class="scheduleEnabled" /> Enable Schedule</label>
+        <button class="saveScheduleBtn" data-relay="${i+1}">Save Schedule</button>
+      </fieldset>
+    `;
+    relayContainer.appendChild(card);
+  }
 
-            const toggleRelay = () => {
-                db.ref(`relay${index + 1}`).set(state ? 0 : 1);
-            };
+  // WebSocket or SSE connection could be used for real-time updates.
+  // For simplicity, use periodic fetch every 5 seconds.
+  async function fetchStatus() {
+    try {
+      const res = await fetch('/status');  // ESP32 should serve JSON data here
+      if (!res.ok) throw new Error('Fetch failed');
+      const data = await res.json();
 
-            const updateSchedule = (field, value) => {
-                const newSchedule = { ...schedule, [field]: parseInt(value) || 0 };
-                setSchedule(newSchedule);
-                db.ref(`schedule${index + 1}`).set(newSchedule);
-            };
+      modeToggle.checked = data.mode === 1;
+      statusEl.textContent = `Mode: ${modeToggle.checked ? 'Cloud' : 'Manual'}`;
 
-            const toggleSchedule = () => {
-                const newSchedule = { ...schedule, enabled: !schedule.enabled };
-                setSchedule(newSchedule);
-                db.ref(`schedule${index + 1}`).set(newSchedule);
-            };
+      for (let i = 0; i < relayCount; i++) {
+        const rNum = i + 1;
+        const relayOn = data.relays[i] === 1;
+        document.querySelector(`#relayCard${rNum} .relaySwitch`).checked = relayOn;
 
-            return (
-                <div className="bg-white p-4 rounded-lg shadow-md mb-4">
-                    <h2 className="text-lg font-semibold mb-2">Relay {index + 1}</h2>
-                    <div className="flex items-center mb-4">
-                        <span className="mr-2">State:</span>
-                        <button
-                            onClick={toggleRelay}
-                            className={`px-4 py-2 rounded ${state ? 'bg-green-500' : 'bg-red-500'} text-white`}
-                        >
-                            {state ? 'ON' : 'OFF'}
-                        </button>
-                    </div>
-                    <div className="grid grid-cols-2 gap-4">
-                        <div>
-                            <label className="block text-sm">Start Time</label>
-                            <input
-                                type="number"
-                                min="0"
-                                max="23"
-                                value={schedule.startHour}
-                                onChange={(e) => updateSchedule('startHour', e.target.value)}
-                                className="w-20 p-1 border rounded"
-                                placeholder="Hour"
-                            />
-                            <input
-                                type="number"
-                                min="0"
-                                max="59"
-                                value={schedule.startMinute}
-                                onChange={(e) => updateSchedule('startMinute', e.target.value)}
-                                className="w-20 p-1 border rounded ml-2"
-                                placeholder="Minute"
-                            />
-                        </div>
-                        <div>
-                            <label className="block text-sm">Stop Time</label>
-                            <input
-                                type="number"
-                                min="0"
-                                max="23"
-                                value={schedule.stopHour}
-                                onChange={(e) => updateSchedule('stopHour', e.target.value)}
-                                className="w-20 p-1 border rounded"
-                                placeholder="Hour"
-                            />
-                            <input
-                                type="number"
-                                min="0"
-                                max="59"
-                                value={schedule.stopMinute}
-                                onChange={(e) => updateSchedule('stopMinute', e.target.value)}
-                                className="w-20 p-1 border rounded ml-2"
-                                placeholder="Minute"
-                            />
-                        </div>
-                    </div>
-                    <div className="mt-4">
-                        <label className="flex items-center">
-                            <input
-                                type="checkbox"
-                                checked={schedule.enabled}
-                                onChange={toggleSchedule}
-                                className="mr-2"
-                            />
-                            Enable Schedule
-                        </label>
-                    </div>
-                </div>
-            );
-        }
+        const sched = data.schedules[i];
+        document.querySelector(`#relayCard${rNum} .startHour`).value = sched.startHour;
+        document.querySelector(`#relayCard${rNum} .startMinute`).value = sched.startMinute;
+        document.querySelector(`#relayCard${rNum} .stopHour`).value = sched.stopHour;
+        document.querySelector(`#relayCard${rNum} .stopMinute`).value = sched.stopMinute;
+        document.querySelector(`#relayCard${rNum} .scheduleEnabled`).checked = sched.enabled;
+      }
+    } catch (e) {
+      statusEl.textContent = 'Failed to connect';
+      console.error(e);
+    }
+  }
 
-        function App() {
-            const [onlineStatus, setOnlineStatus] = React.useState(0);
+  // Save relay state when toggled (only in cloud mode)
+  relayContainer.addEventListener('change', async e => {
+    if (!modeToggle.checked) return;  // only cloud mode
 
-            React.useEffect(() => {
-                const statusRef = db.ref('onlineStatus');
-                statusRef.on('value', (snapshot) => {
-                    setOnlineStatus(snapshot.val());
-                });
-                return () => statusRef.off();
-            }, []);
+    if (e.target.classList.contains('relaySwitch')) {
+      const relayNum = e.target.dataset.relay;
+      const val = e.target.checked ? 1 : 0;
+      try {
+        await fetch(`/relay/${relayNum}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ state: val }),
+        });
+        statusEl.textContent = `Relay ${relayNum} state updated`;
+      } catch {
+        statusEl.textContent = `Failed to update Relay ${relayNum}`;
+      }
+    } else if (e.target.id === 'modeToggle') {
+      const val = e.target.checked ? 1 : 0;
+      try {
+        await fetch(`/mode`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ mode: val }),
+        });
+        statusEl.textContent = `Mode set to ${val ? 'Cloud' : 'Manual'}`;
+      } catch {
+        statusEl.textContent = `Failed to update mode`;
+      }
+    }
+  });
 
-            return (
-                <div className="max-w-2xl mx-auto">
-                    <h1 className="text-2xl font-bold mb-4">ESP32 Relay Control</h1>
-                    <div className="mb-4">
-                        <span className="text-lg">
-                            Status: {onlineStatus === 1 ? 
-                                <span className="text-green-600">Online (Cloud Control)</span> : 
-                                <span className="text-red-600">Offline (Local Control)</span>}
-                        </span>
-                    </div>
-                    {[...Array(7)].map((_, index) => (
-                        <RelayCard key={index} index={index} />
-                    ))}
-                </div>
-            );
-        }
+  // Save schedule button clicks
+  relayContainer.addEventListener('click', async e => {
+    if (e.target.classList.contains('saveScheduleBtn')) {
+      const relayNum = e.target.dataset.relay;
+      const card = document.querySelector(`#relayCard${relayNum}`);
 
-        ReactDOM.render(<App />, document.getElementById('root'));
-    </script>
+      const startHour = parseInt(card.querySelector('.startHour').value);
+      const startMinute = parseInt(card.querySelector('.startMinute').value);
+      const stopHour = parseInt(card.querySelector('.stopHour').value);
+      const stopMinute = parseInt(card.querySelector('.stopMinute').value);
+      const enabled = card.querySelector('.scheduleEnabled').checked;
+
+      try {
+        await fetch(`/schedule/${relayNum}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ startHour, startMinute, stopHour, stopMinute, enabled }),
+        });
+        statusEl.textContent = `Schedule saved for Relay ${relayNum}`;
+      } catch {
+        statusEl.textContent = `Failed to save schedule for Relay ${relayNum}`;
+      }
+    }
+  });
+
+  // Initial fetch and periodic update
+  fetchStatus();
+  setInterval(fetchStatus, 5000);
+</script>
+
 </body>
 </html>
