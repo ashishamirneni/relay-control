@@ -13,16 +13,12 @@
     h1 {
       color: #333;
     }
-    .toggle-group {
+    .section {
       margin: 20px 0;
-    }
-    .relay {
-      margin: 10px;
-      padding: 10px 20px;
-      display: inline-block;
+      padding: 15px;
       background: #fff;
       border-radius: 10px;
-      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+      box-shadow: 0 2px 6px rgba(0,0,0,0.1);
     }
     button {
       padding: 10px 20px;
@@ -43,103 +39,102 @@
     .status {
       margin-top: 20px;
       font-weight: bold;
-      color: green;
     }
   </style>
 </head>
 <body>
   <h1>ESP32 Relay Control Panel</h1>
 
-  <div class="toggle-group">
-    <p><b>Mode:</b> <span id="modeLabel">Manual</span></p>
+  <div class="section">
+    <h3>Mode</h3>
+    <p><b>Current Mode:</b> <span id="modeLabel">Loading...</span></p>
     <button onclick="toggleMode()">Toggle Mode</button>
   </div>
 
-  <div class="toggle-group">
-    <p><b>Schedule (6PM–10:30PM):</b> <span id="timeLabel">Off</span></p>
-    <button onclick="toggleTimeSet()">Toggle Time Set</button>
+  <div class="section">
+    <h3>Timer Schedule (6:00 PM - 10:30 PM)</h3>
+    <p><b>Timer Status:</b> <span id="timerLabel">Loading...</span></p>
+    <button onclick="toggleTimer()">Toggle Timer</button>
   </div>
 
-  <div>
+  <div class="section">
     <h3>Relay Control (Auto Mode Only)</h3>
-    <div id="relays">
-      <!-- relay buttons inserted here -->
-    </div>
+    <div id="relays"></div>
   </div>
 
   <div class="status" id="status">Connecting...</div>
 
-  <!-- Firebase SDK -->
+  <!-- Firebase SDKs -->
   <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-database-compat.js"></script>
 
   <script>
-    // ✅ Replace this config with your actual Firebase config
+    // Replace with your actual Firebase config
     const firebaseConfig = {
       apiKey: "AIzaSyAFRKTkIcoocrSjdpNqdNCtElWDjX-AfBo",
       authDomain: "esp32livebutton.firebaseapp.com",
       databaseURL: "https://esp32livebutton-default-rtdb.firebaseio.com",
       projectId: "esp32livebutton",
       storageBucket: "esp32livebutton.appspot.com",
-      messagingSenderId: "YourSenderID",
-      appId: "YourAppID"
+      messagingSenderId: "YOUR_SENDER_ID",
+      appId: "YOUR_APP_ID"
     };
 
     firebase.initializeApp(firebaseConfig);
     const db = firebase.database();
 
-    const relaysDiv = document.getElementById('relays');
     const modeLabel = document.getElementById('modeLabel');
-    const timeLabel = document.getElementById('timeLabel');
+    const timerLabel = document.getElementById('timerLabel');
     const statusDiv = document.getElementById('status');
+    const relaysDiv = document.getElementById('relays');
 
-    // Create relay buttons
+    // Add relay control buttons
     for (let i = 1; i <= 7; i++) {
       const div = document.createElement('div');
       div.className = "relay";
       div.innerHTML = `
-        Relay ${i}<br>
-        <button id="relay${i}-on" class="on" onclick="setRelay(${i}, 1)">ON</button>
-        <button id="relay${i}-off" class="off" onclick="setRelay(${i}, 0)">OFF</button>
+        Relay ${i} <br>
+        <button class="on" onclick="setRelay(${i}, 1)">ON</button>
+        <button class="off" onclick="setRelay(${i}, 0)">OFF</button>
+        <br><br>
       `;
       relaysDiv.appendChild(div);
     }
 
-    // Toggle mode (0 = manual, 1 = auto)
+    // Toggle Mode (manual/auto)
     function toggleMode() {
       db.ref('onlineStatus').get().then(snapshot => {
-        let current = snapshot.val() || 0;
-        let newVal = current === 1 ? 0 : 1;
-        db.ref('onlineStatus').set(newVal);
+        const val = snapshot.val() || 0;
+        db.ref('onlineStatus').set(val === 1 ? 0 : 1);
       });
     }
 
-    // Toggle timeSet (0 = off, 1 = schedule active)
-    function toggleTimeSet() {
+    // Toggle Timer (timeSet)
+    function toggleTimer() {
       db.ref('timeSet').get().then(snapshot => {
-        let current = snapshot.val() || 0;
-        let newVal = current === 1 ? 0 : 1;
-        db.ref('timeSet').set(newVal);
+        const val = snapshot.val() || 0;
+        db.ref('timeSet').set(val === 1 ? 0 : 1);
       });
     }
 
     // Set individual relay
     function setRelay(index, value) {
-      db.ref('relay' + index).set(value);
+      db.ref(`relay${index}`).set(value);
     }
 
-    // Realtime updates
+    // Listen for onlineStatus changes
     db.ref('onlineStatus').on('value', snapshot => {
       const val = snapshot.val();
       modeLabel.textContent = val === 1 ? 'Auto' : 'Manual';
     });
 
+    // Listen for timer state
     db.ref('timeSet').on('value', snapshot => {
       const val = snapshot.val();
-      timeLabel.textContent = val === 1 ? 'On' : 'Off';
+      timerLabel.textContent = val === 1 ? 'ON' : 'OFF';
     });
 
-    // Connection status
+    // Firebase connection status
     firebase.database().ref(".info/connected").on("value", function(snap) {
       if (snap.val() === true) {
         statusDiv.innerText = "Connected to Firebase";
