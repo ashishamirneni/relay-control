@@ -2,119 +2,144 @@
 <html>
 <head>
   <meta charset="UTF-8">
-  <title>ESP32 Automation Timer</title>
-  <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-database-compat.js"></script>
+  <title>ESP32 Relay Control</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
   <style>
     body {
       font-family: Arial, sans-serif;
-      background: #121212;
-      color: #fff;
+      background: #f3f3f3;
+      text-align: center;
+      margin: 0;
+      padding: 20px;
+    }
+
+    .container {
       display: flex;
-      flex-direction: column;
-      align-items: center;
-      padding: 2rem;
+      flex-wrap: wrap;
+      justify-content: center;
     }
 
-    h2 {
-      margin-bottom: 1rem;
-      color: #00d1ff;
-    }
-
-    label {
-      margin-top: 1rem;
-      font-size: 1.2rem;
-    }
-
-    input[type="time"] {
-      margin-top: 0.5rem;
-      padding: 0.5rem;
-      font-size: 1rem;
-      border-radius: 5px;
-      border: none;
+    .relay {
+      background: white;
+      border-radius: 12px;
+      margin: 10px;
+      padding: 20px;
+      box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+      width: 130px;
     }
 
     button {
-      margin-top: 2rem;
-      padding: 0.8rem 2rem;
-      font-size: 1rem;
-      background-color: #00d1ff;
-      color: #000;
+      padding: 10px 20px;
+      margin: 10px 0;
+      font-size: 16px;
+      border-radius: 6px;
       border: none;
-      border-radius: 8px;
       cursor: pointer;
     }
 
-    button:hover {
-      background-color: #00b4e6;
+    button.on {
+      background-color: #4CAF50;
+      color: white;
     }
 
-    .status {
-      margin-top: 1rem;
-      font-size: 1rem;
-      color: #7fff7f;
+    button.off {
+      background-color: #f44336;
+      color: white;
+    }
+
+    #status {
+      margin-bottom: 20px;
+      font-weight: bold;
+    }
+
+    @media(max-width: 600px) {
+      .relay {
+        width: 90%;
+      }
     }
   </style>
 </head>
 <body>
-  <h2>ESP32 Automation Timer</h2>
+  <h1>ESP32 Relay Control</h1>
+  <div id="status">Connecting...</div>
+  <div class="container" id="relayContainer"></div>
 
-  <label for="start">Start Time:</label>
-  <input type="time" id="start" />
-
-  <label for="end">End Time:</label>
-  <input type="time" id="end" />
-
-  <button onclick="updateTime()">Update Timer</button>
-  <div class="status" id="status"></div>
+  <!-- Firebase SDK -->
+  <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-database-compat.js"></script>
 
   <script>
-    // 🔧 Replace with your Firebase config
     const firebaseConfig = {
-      apiKey: "AIzaSyAFRKTkIcoocrSjdpNqdNCtElWDjX-AfBo",
-      authDomain: "esp32livebutton.firebaseapp.com",
-      databaseURL: "https://esp32livebutton-default-rtdb.firebaseio.com",
-      projectId: "esp32livebutton",
-      storageBucket: "esp32livebutton.appspot.com",
-      messagingSenderId: "909258245464",
-      appId: "1:909258245464:web:24202a59472aebed76892d"
+      apiKey: "YOUR_API_KEY",
+      authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
+      databaseURL: "https://YOUR_PROJECT_ID-default-rtdb.firebaseio.com",
+      projectId: "YOUR_PROJECT_ID",
+      storageBucket: "YOUR_PROJECT_ID.appspot.com",
+      messagingSenderId: "YOUR_SENDER_ID",
+      appId: "YOUR_APP_ID"
     };
 
     // Initialize Firebase
     firebase.initializeApp(firebaseConfig);
     const db = firebase.database();
 
-    // Load current values
-    window.onload = () => {
-      db.ref("timer").once("value").then(snapshot => {
-        const data = snapshot.val();
-        if (data) {
-          document.getElementById("start").value = data.start || "";
-          document.getElementById("end").value = data.end || "";
-        }
-      });
-    };
+    const relayCount = 8;
+    const container = document.getElementById('relayContainer');
+    const status = document.getElementById('status');
 
-    // Update time in Firebase
-    function updateTime() {
-      const start = document.getElementById("start").value;
-      const end = document.getElementById("end").value;
+    function createRelayCard(i, state) {
+      const card = document.createElement('div');
+      card.className = 'relay';
+      card.id = 'relay' + i;
 
-      if (!start || !end) {
-        alert("Please set both start and end time.");
-        return;
-      }
+      const title = document.createElement('h3');
+      title.innerText = 'Relay ' + (i + 1);
 
-      db.ref("timer").set({
-        start: start,
-        end: end
-      }).then(() => {
-        document.getElementById("status").innerText = "Timer updated successfully!";
-        setTimeout(() => document.getElementById("status").innerText = "", 3000);
-      }).catch(error => {
-        alert("Error updating Firebase: " + error.message);
-      });
+      const btn = document.createElement('button');
+      btn.innerText = state ? 'ON' : 'OFF';
+      btn.className = state ? 'on' : 'off';
+
+      btn.onclick = () => {
+        const newState = btn.innerText === 'OFF' ? 1 : 0;
+        db.ref('relays/' + i).set(newState);
+      };
+
+      card.appendChild(title);
+      card.appendChild(btn);
+      container.appendChild(card);
     }
+
+    function updateRelayUI(i, state) {
+      const card = document.getElementById('relay' + i);
+      const btn = card.querySelector('button');
+      btn.innerText = state ? 'ON' : 'OFF';
+      btn.className = state ? 'on' : 'off';
+    }
+
+    function initUI() {
+      status.innerText = 'Connected!';
+      for (let i = 0; i < relayCount; i++) {
+        db.ref('relays/' + i).once('value').then(snapshot => {
+          const state = snapshot.val() || 0;
+          createRelayCard(i, state);
+        });
+
+        db.ref('relays/' + i).on('value', snapshot => {
+          const state = snapshot.val();
+          if (document.getElementById('relay' + i)) {
+            updateRelayUI(i, state);
+          }
+        });
+      }
+    }
+
+    firebase.database().ref('.info/connected').on('value', function(snapshot) {
+      if (snapshot.val() === true) {
+        initUI();
+      } else {
+        status.innerText = 'Disconnected';
+      }
+    });
   </script>
 </body>
 </html>
